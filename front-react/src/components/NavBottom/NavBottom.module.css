@@ -1,0 +1,49 @@
+.navBottom {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .navBottom {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    width: 100vw;
+    background: #fff;
+    justify-content: space-around;
+    align-items: center;
+    height: 56px;
+    z-index: 100;
+    display: flex;
+  }
+
+  .plusButton {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 38px;
+    background: linear-gradient(180deg, #a3c7f7 0%, #f7b0b7 100%);
+    border-radius: 50%;
+    width: 64px;
+    height: 64px;
+    box-shadow: 0 2px 12px #0002;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 4px solid #fff;
+    z-index: 110;
+    padding: 0;
+  }
+  .plusIcon {
+    width: 35px;
+    height: 35px;
+  }
+  .navBottom button {
+    background: none;
+    border: none;
+    padding: 0;
+  }
+  .navBottom img {
+    width: 32px;
+    height: 32px;
+  }
+} 

@@ -1,0 +1,121 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(1px);
+  pointer-events: auto;
+}
+
+.pulse {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  animation: pulse 1.6s infinite;
+  border: 2px solid rgba(59, 130, 246, 0.6);
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+  70% { box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.tooltip {
+  position: absolute;
+  background: white;
+  color: #111827;
+  border-radius: 12px;
+  padding: 14px 16px;
+  width: min(86vw, 320px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  transform: translateY(6px);
+  opacity: 0;
+  transition: all 220ms ease;
+  pointer-events: auto;
+}
+
+.tooltip.visible { opacity: 1; transform: translateY(0); }
+
+.title {
+  font-weight: 700;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.content {
+  font-size: 14px;
+  line-height: 1.45;
+  color: #374151;
+}
+
+.actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.primary {
+  background: #3B82F6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary {
+  background: transparent;
+  color: #111827;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.top::after,
+.bottom::after,
+.left::after,
+.right::after {
+  content: "";
+  position: absolute;
+  width: 0; height: 0;
+  border-style: solid;
+}
+
+.bottom::after {
+  top: -8px; left: 50%; transform: translateX(-50%);
+  border-width: 0 8px 8px 8px;
+  border-color: transparent transparent white transparent;
+}
+
+.top::after {
+  bottom: -8px; left: 50%; transform: translateX(-50%);
+  border-width: 8px 8px 0 8px;
+  border-color: white transparent transparent transparent;
+}
+
+.left::after {
+  right: -8px; top: 50%; transform: translateY(-50%);
+  border-width: 8px 8px 8px 0;
+  border-color: transparent white transparent transparent;
+}
+
+.right::after {
+  left: -8px; top: 50%; transform: translateY(-50%);
+  border-width: 8px 0 8px 8px;
+  border-color: transparent transparent transparent white;
+}
+
+
+

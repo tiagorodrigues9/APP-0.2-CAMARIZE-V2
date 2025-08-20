@@ -1,0 +1,414 @@
+.createWrapper {
+  min-height: 100vh;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 12px 0 12px;
+  position: relative;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  position: absolute;
+  top: 18px;
+  left: 30px;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 2;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.backBtn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.formBox {
+  width: 100%;
+  max-width: 820px;
+  background: #fff;
+  margin: 56px auto 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px 36px;
+  border-radius: 18px;
+  padding: 40px 40px 32px 40px;
+  align-items: flex-start;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 8px;
+  margin-top: 0;
+  grid-column: 1 / -1;
+  text-align: left;
+  padding-left: 48px;
+}
+
+.input, .inputSelect {
+  width: 100%;
+  border: none;
+  background: #f5f5f5;
+  border-radius: 6px;
+  padding: 15px 16px;
+  font-size: 1.08rem;
+  margin-bottom: 0;
+  outline: none;
+  color: #222;
+  box-sizing: border-box;
+  grid-column: span 1;
+  height: 52px;
+}
+
+.input:focus {
+  border: 1.5px solid #a3c7f7;
+  background: #f0f6ff;
+}
+
+.inputIconBox {
+  position: relative;
+  padding: 0;
+  background: none;
+  width: 100%;
+  display: block;
+}
+
+.inputIcon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  height: 24px;
+}
+
+.uploadBox {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 0;
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+.uploadBtn {
+  background: #222;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 1.08rem;
+  cursor: pointer;
+  font-weight: 500;
+  margin-right: 12px;
+  white-space: nowrap;
+}
+
+.uploadFileName {
+  color: #888;
+  font-size: 1rem;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hr {
+  border: none;
+  border-top: 1.5px solid #eaeaea;
+  margin: 24px 0 12px 0;
+  grid-column: 1 / -1;
+}
+
+.subtitle {
+  font-size: 1.13rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  margin-top: 0;
+  grid-column: 1 / -1;
+}
+
+.cadastrarBtn {
+  width: 220px;
+  margin: 24px auto 0 auto;
+  background: linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.2s;
+  box-shadow: 0 2px 8px #0001;
+  display: block;
+  grid-column: 1 / -1;
+}
+
+.cadastrarBtn:active {
+  filter: brightness(0.95);
+}
+
+.logoBox {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+  margin-bottom: 18px;
+  grid-column: 1 / -1;
+}
+
+.logoBox img {
+  width: 120px;
+  height: auto;
+  max-width: 100%;
+}
+
+/* Inputs de médias em linha */
+.mediaInputs {
+  display: flex;
+  gap: 18px;
+  grid-column: 1 / -1;
+}
+
+.mediaInputs .input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Estilos para o SelectTipoCamarao */
+.formBox > div[style*="width: 100%"] {
+  grid-column: 1 / -1;
+}
+
+/* Estilos para react-select responsivo */
+.formBox :global(.css-13cymwt-control) {
+  min-height: 52px !important;
+  border: none !important;
+  background: #f5f5f5 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+.formBox :global(.css-1jqq78o-placeholder) {
+  color: #888 !important;
+  font-family: 'Poppins' !important;
+  font-size: 1.08rem !important;
+}
+
+.formBox :global(.css-1dimb5e-singleValue) {
+  color: #222 !important;
+  font-family: 'Poppins' !important;
+  font-size: 1.08rem !important;
+}
+
+.formBox :global(.css-1fdsijx-ValueContainer) {
+  padding: 15px 16px !important;
+}
+
+.formBox :global(.css-1u9des2-indicatorSeparator) {
+  display: none !important;
+}
+
+.formBox :global(.css-1xc3v61-indicatorContainer) {
+  padding: 0 8px !important;
+}
+
+/* Responsividade melhorada */
+@media (max-width: 900px) {
+  .formBox {
+    max-width: 95vw;
+    padding: 24px 20px;
+    grid-template-columns: 1fr;
+    gap: 20px 0;
+    margin-top: 40px;
+  }
+  
+  .title {
+    padding-left: 0;
+    text-align: center;
+    font-size: 1.4rem;
+  }
+  
+  .mediaInputs {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .backBtn {
+    left: 20px;
+    top: 15px;
+  }
+}
+
+@media (max-width: 700px) {
+  .createWrapper {
+    padding: 0 8px;
+  }
+  
+  .formBox {
+    max-width: 100%;
+    padding: 20px 16px;
+    border-radius: 12px;
+    margin-top: 35px;
+  }
+  
+  .title {
+    font-size: 1.3rem;
+    margin-bottom: 16px;
+  }
+  
+  .input, .inputSelect {
+    font-size: 1rem;
+    padding: 14px 12px;
+    height: 48px;
+  }
+  
+  /* React-select responsivo para mobile */
+  .formBox :global(.css-13cymwt-control) {
+    min-height: 48px !important;
+  }
+  
+  .formBox :global(.css-1fdsijx-ValueContainer) {
+    padding: 14px 12px !important;
+  }
+  
+  .formBox :global(.css-1jqq78o-placeholder),
+  .formBox :global(.css-1dimb5e-singleValue) {
+    font-size: 1rem !important;
+  }
+  
+  .uploadBox {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  .uploadBtn {
+    margin-right: 0;
+    width: 100%;
+    padding: 12px;
+  }
+  
+  .uploadFileName {
+    text-align: center;
+    font-size: 0.9rem;
+  }
+  
+  .cadastrarBtn {
+    width: 100%;
+    padding: 16px 0;
+    font-size: 1.1rem;
+    margin: 20px 0 0 0;
+  }
+  
+  .logoBox {
+    margin-top: 24px;
+  }
+  
+  .logoBox img {
+    width: 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .createWrapper {
+    padding: 0 4px;
+  }
+  
+  .formBox {
+    padding: 16px 12px;
+    gap: 16px 0;
+    margin-top: 30px;
+  }
+  
+  .title {
+    font-size: 1.2rem;
+    padding-left: 0;
+  }
+  
+  .subtitle {
+    font-size: 1rem;
+  }
+  
+  .input, .inputSelect {
+    font-size: 0.95rem;
+    padding: 12px 10px;
+    height: 44px;
+  }
+  
+  /* React-select responsivo para telas pequenas */
+  .formBox :global(.css-13cymwt-control) {
+    min-height: 44px !important;
+  }
+  
+  .formBox :global(.css-1fdsijx-ValueContainer) {
+    padding: 12px 10px !important;
+  }
+  
+  .formBox :global(.css-1jqq78o-placeholder),
+  .formBox :global(.css-1dimb5e-singleValue) {
+    font-size: 0.95rem !important;
+  }
+  
+  .backBtn {
+    left: 12px;
+    top: 12px;
+    font-size: 20px;
+  }
+  
+  .logoBox img {
+    width: 90px;
+  }
+}
+
+@media (max-width: 360px) {
+  .formBox {
+    padding: 12px 8px;
+  }
+  
+  .title {
+    font-size: 1.1rem;
+  }
+  
+  .input, .inputSelect {
+    font-size: 0.9rem;
+    padding: 10px 8px;
+    height: 40px;
+  }
+  
+  /* React-select responsivo para telas muito pequenas */
+  .formBox :global(.css-13cymwt-control) {
+    min-height: 40px !important;
+  }
+  
+  .formBox :global(.css-1fdsijx-ValueContainer) {
+    padding: 10px 8px !important;
+  }
+  
+  .formBox :global(.css-1jqq78o-placeholder),
+  .formBox :global(.css-1dimb5e-singleValue) {
+    font-size: 0.9rem !important;
+  }
+  
+  .uploadBtn {
+    font-size: 0.95rem;
+    padding: 10px;
+  }
+  
+  .cadastrarBtn {
+    font-size: 1rem;
+    padding: 14px 0;
+  }
+}

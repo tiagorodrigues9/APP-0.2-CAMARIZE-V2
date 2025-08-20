@@ -1,0 +1,174 @@
+/* Overlay do modal */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(0px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  visibility: hidden;
+  will-change: opacity, visibility, backdrop-filter;
+}
+
+.modalOverlay.visible {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Conteúdo do modal */
+.modalContent {
+  background: #fff;
+  border-radius: 20px;
+  min-width: 320px;
+  max-width: 90vw;
+  max-height: 60vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e5e7eb;
+  transform: scale(0.8) translate3d(0, 30px, 0);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  will-change: transform, opacity;
+  /* Sincronização perfeita com o overlay */
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modalContent.visible {
+  transform: scale(1) translate3d(0, 0, 0);
+  opacity: 1;
+}
+
+/* Header do modal */
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 24px 16px 24px;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 0;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.closeButton {
+  padding: 8px;
+  border-radius: 50%;
+  border: none;
+  background: #f3f4f6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  width: 32px;
+  height: 32px;
+}
+
+.closeButton:hover {
+  background: #e5e7eb;
+  color: #374151;
+  transform: scale(1.05);
+}
+
+.closeButton:active {
+  transform: scale(0.95);
+}
+
+/* Corpo do modal */
+.modalBody {
+  padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Responsividade */
+@media (max-width: 640px) {
+  .modalContent {
+    margin: 16px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
+  }
+  
+  .modalHeader {
+    padding: 20px 20px 0 20px;
+  }
+  
+  .modalBody {
+    padding: 20px;
+  }
+  
+  .modalTitle {
+    font-size: 18px;
+  }
+}
+
+/* Animações de entrada para elementos internos */
+.modalBody > * {
+  animation: slideInUp 0.5s ease-out 0.2s both;
+}
+
+.modalBody > *:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.modalBody > *:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.modalBody > *:nth-child(4) {
+  animation-delay: 0.5s;
+}
+
+.modalBody > *:nth-child(5) {
+  animation-delay: 0.6s;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar personalizada para o modal */
+.modalContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modalContent::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.modalContent::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.modalContent::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+} 

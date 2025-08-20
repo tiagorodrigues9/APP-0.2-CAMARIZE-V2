@@ -1,0 +1,42 @@
+{
+  "name": "app-0.2-camarize",
+  "version": "1.0.0",
+  "description": "CAMARIZE",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "setup-ngrok": "node setup-ngrok.js",
+    "test-ngrok": "node test-ngrok.js",
+    "check-services": "node check-services.js",
+    "install-deps": "node install-deps.js",
+    "start-ngrok-api": "C:\\Users\\joao.kusaka\\AppData\\Roaming\\npm\\ngrok.cmd http 4000 --config ngrok.yml",
+    "start-ngrok-front": "C:\\Users\\joao.kusaka\\AppData\\Roaming\\npm\\ngrok.cmd http 3000 --config ngrok.yml",
+    "start-ngrok-both": "concurrently \"C:\\Users\\joao.kusaka\\AppData\\Roaming\\npm\\ngrok.cmd http 4000 --config ngrok.yml\" \"C:\\Users\\joao.kusaka\\AppData\\Roaming\\npm\\ngrok.cmd http 3000 --config ngrok.yml\"",
+    "start-ngrok-single": "node start-ngrok-single.js",
+    "dev-api": "cd api && npm start",
+    "dev-front": "cd front-react && npm run dev",
+    "dev-both": "concurrently \"npm run dev-api\" \"npm run dev-front\"",
+    "start": "node start-camarize.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joaovitor101/APP-0.2-CAMARIZE.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/joaovitor101/APP-0.2-CAMARIZE/issues"
+  },
+  "homepage": "https://github.com/joaovitor101/APP-0.2-CAMARIZE#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "jwt-decode": "^4.0.0",
+    "react-icons": "^5.5.0",
+    "web-push": "^3.6.7",
+    "concurrently": "^8.2.2"
+  }
+}

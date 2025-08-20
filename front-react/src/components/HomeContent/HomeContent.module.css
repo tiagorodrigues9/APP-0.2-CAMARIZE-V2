@@ -1,0 +1,181 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+
+  padding-top: 24px;
+  width: 100%;
+}
+
+.mobileCard {
+  width: 100%;
+  max-width: 400px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 2px 16px #0002;
+  padding: 0 0 24px 0;
+  margin: 0 auto;
+  min-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px 8px 32px;
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.iconGroup {
+  display: flex;
+  gap: 16px;
+}
+
+.iconBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 1.7rem;
+  color: #222;
+  display: flex;
+  align-items: center;
+}
+
+.iconBtn svg {
+  width: 28px;
+  height: 28px;
+}
+
+
+
+.cativeiroList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 8px;
+  max-width: 600px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.cativeiroItem {
+  display: flex;
+  align-items: center;
+  padding: 24px 32px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.cativeiroImg {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 24px;
+  border: 2px solid #eee;
+}
+
+.cativeiroInfo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.cativeiroNome {
+  font-weight: bold;
+  font-size: 1.12rem;
+}
+
+.cativeiroCultivo {
+  font-size: 1rem;
+  color: #888;
+}
+
+
+
+.cativeiroActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.actionBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.actionBtn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.emptyMessage {
+  font-size: 1.1rem;
+  color: #888;
+  text-align: center;
+  font-weight: 500;
+}
+
+.navBottom {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .navBottom {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    width: 100vw;
+    background: #fff;
+    border-top: 1px solid #eee;
+    justify-content: space-around;
+    align-items: center;
+    height: 56px;
+    z-index: 100;
+    display: flex;
+  }
+  .navBottom button {
+    background: none;
+    border: none;
+    padding: 0;
+  }
+  .navBottom img {
+    width: 32px;
+    height: 32px;
+  }
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  
+
+}

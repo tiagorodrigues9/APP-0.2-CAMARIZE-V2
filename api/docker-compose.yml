@@ -1,0 +1,41 @@
+version: '3.8'
+services:
+  mongo-api:
+    image: mongo:6
+    container_name: mongo-api
+    restart: always
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - mongo_data:/data/db
+
+  api-camarize:
+    build: ./api
+    container_name: api-camarize
+    restart: always
+    environment:
+      - MONGO_URL=mongodb://mongo-api:27017/camarize
+    depends_on:
+      mongo-api:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+
+  front-camarize:
+    build: ./front-react
+    container_name: front-camarize
+    restart: always
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    depends_on:
+      - api-camarize
+    ports:
+      - "3001:3000"
+
+volumes:
+  mongo_data: 

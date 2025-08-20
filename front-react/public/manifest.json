@@ -1,0 +1,62 @@
+{
+  "name": "Camarize - Monitoramento Inteligente",
+  "short_name": "Camarize",
+  "description": "Sistema inteligente de monitoramento para cativeiros de camarão",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3B82F6",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/images/favicon-camarize.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo_camarize1.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo_camarize2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "business"],
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Acessar dashboard principal",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/images/logo_camarize1.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Status Cativeiros",
+      "short_name": "Status",
+      "description": "Verificar status dos cativeiros",
+      "url": "/status-cativeiros",
+      "icons": [
+        {
+          "src": "/images/logo_camarize1.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+} 

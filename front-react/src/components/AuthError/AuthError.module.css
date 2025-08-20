@@ -1,0 +1,116 @@
+.errorContainer {
+  max-width: 400px;
+  margin: 80px auto;
+  background: #fff;
+  padding: 32px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  text-align: center;
+  position: relative;
+}
+
+.backBtn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.backBtn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.errorContent {
+  margin-bottom: 24px;
+}
+
+.errorIcon {
+  width: 64px;
+  height: 64px;
+  background: #fef3c7;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+}
+
+.errorIcon span {
+  font-size: 32px;
+}
+
+.errorTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #1f2937;
+}
+
+.errorMessage {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.errorActions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loginBtn {
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  background: #1976d2;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 16px;
+  width: 100%;
+  transition: background 0.2s;
+}
+
+.loginBtn:hover {
+  background: #1565c0;
+}
+
+.retryBtn {
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 16px;
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.retryBtn:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+  .errorContainer {
+    margin: 40px 16px;
+    padding: 24px;
+  }
+  
+  .errorTitle {
+    font-size: 18px;
+  }
+  
+  .errorMessage {
+    font-size: 14px;
+  }
+} 
