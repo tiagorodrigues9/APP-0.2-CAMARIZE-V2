@@ -14,6 +14,7 @@ export default function EditCativeiroPage() {
   const [fazendaSelecionada, setFazendaSelecionada] = useState("");
   const [tipoCamarao, setTipoCamarao] = useState(null);
   const [dataInstalacao, setDataInstalacao] = useState("");
+  const [nomeCativeiro, setNomeCativeiro] = useState("");
   const [arquivo, setArquivo] = useState(null);
   const [sensores, setSensores] = useState(["", "", ""]);
   const [sensoresDisponiveis, setSensoresDisponiveis] = useState([]);
@@ -122,6 +123,7 @@ export default function EditCativeiroPage() {
       setCativeiro(cativeiroData);
       
       // Preencher os campos com os dados existentes
+      setNomeCativeiro(cativeiroData.nome || "");
       const fazendaId = (cativeiroData.fazenda?._id || cativeiroData.fazenda || "").toString();
       setFazendaSelecionada(fazendaId);
       console.log('Fazenda selecionada:', fazendaId);
@@ -237,6 +239,7 @@ export default function EditCativeiroPage() {
     e.preventDefault();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
     const formData = new FormData();
+    formData.append("nome", nomeCativeiro);
     formData.append("fazendaId", fazendaSelecionada);
     formData.append("id_tipo_camarao", tipoCamarao?.value || "");
     formData.append("data_instalacao", dataInstalacao);
@@ -297,6 +300,14 @@ export default function EditCativeiroPage() {
       </button>
       <form className={styles.formBox} onSubmit={handleSubmit}>
         <h2 className={styles.title}>Editar cativeiro</h2>
+        <input
+          className={styles.input}
+          placeholder="Nome do cativeiro"
+          type="text"
+          value={nomeCativeiro}
+          onChange={e => setNomeCativeiro(e.target.value)}
+          required
+        />
         <select
           className={`${styles.input} ${styles.inputSelect}`}
           value={fazendaSelecionada}

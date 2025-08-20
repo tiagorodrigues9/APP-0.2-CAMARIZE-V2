@@ -13,7 +13,7 @@
     "start-ngrok-api": "C:\\Users\\joao.kusaka\\AppData\\Roaming\\npm\\ngrok.cmd http 4000 --config ngrok.yml",
     "start-ngrok-front": "C:\\Users\\joao.kusaka\\AppData\\Roaming\\npm\\ngrok.cmd http 3000 --config ngrok.yml",
     "start-ngrok-both": "concurrently \"C:\\Users\\joao.kusaka\\AppData\\Roaming\\npm\\ngrok.cmd http 4000 --config ngrok.yml\" \"C:\\Users\\joao.kusaka\\AppData\\Roaming\\npm\\ngrok.cmd http 3000 --config ngrok.yml\"",
-    "start-ngrok-single": "node start-ngrok-single.js",
+    "start-ngrok-only": "node api/tests/start-ngrok-only.js",
     "dev-api": "cd api && npm start",
     "dev-front": "cd front-react && npm run dev",
     "dev-both": "concurrently \"npm run dev-api\" \"npm run dev-front\"",
