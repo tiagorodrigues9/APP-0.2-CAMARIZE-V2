@@ -2,10 +2,10 @@
 
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import CondicoesIdeais from "./models/Condicoes_ideais.js";
-import Cativeiros from "./models/Cativeiros.js";
-import ParametrosAtuais from "./models/Parametros_atuais.js";
-import TiposCamarao from "./models/Camaroes.js";
+import CondicoesIdeais from "../models/Condicoes_ideais.js";
+import Cativeiros from "../models/Cativeiros.js";
+import ParametrosAtuais from "../models/Parametros_atuais.js";
+import TiposCamarao from "../models/Camaroes.js";
 
 dotenv.config();
 

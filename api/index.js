@@ -37,6 +37,8 @@ const allowedOrigins = [
   // Permitir domínios ngrok
   /^https:\/\/.*\.ngrok-free\.app$/,
   /^https:\/\/.*\.ngrok\.io$/,
+  /^https:\/\/.*\.ngrok-free\.app$/,
+  /^https:\/\/.*\.ngrok\.io$/,
   // Permitir qualquer origem durante desenvolvimento
   "*"
 ];

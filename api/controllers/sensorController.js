@@ -3,9 +3,14 @@ import sensorService from "../services/sensorService.js";
 const createSensor = async (req, res) => {
   try {
     const data = { ...req.body };
+    
+    // Adicionar o ID do usuário logado ao sensor
+    data.user = req.loggedUser?.id;
+    
     if (req.file) {
       data.foto_sensor = req.file.buffer;
     }
+    
     const result = await sensorService.create(data);
     if (!result) {
       return res.status(500).json({ error: "Falha ao salvar no banco." });
@@ -19,7 +24,9 @@ const createSensor = async (req, res) => {
 
 const getAllSensores = async (req, res) => {
   try {
-    const sensores = await sensorService.getAll();
+    // Buscar apenas sensores do usuário logado
+    const usuarioId = req.loggedUser?.id;
+    const sensores = await sensorService.getAllByUser(usuarioId);
     res.status(200).json(sensores);
   } catch (error) {
     console.log(error);
@@ -30,7 +37,9 @@ const getAllSensores = async (req, res) => {
 const getSensorById = async (req, res) => {
   try {
     const { id } = req.params;
-    const sensor = await sensorService.getById(id);
+    const usuarioId = req.loggedUser?.id;
+    
+    const sensor = await sensorService.getByIdAndUser(id, usuarioId);
     if (!sensor) {
       return res.status(404).json({ error: 'Sensor não encontrado.' });
     }
@@ -43,13 +52,14 @@ const getSensorById = async (req, res) => {
 const updateSensor = async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.loggedUser?.id;
     const data = { ...req.body };
     
     if (req.file) {
       data.foto_sensor = req.file.buffer;
     }
 
-    const result = await sensorService.update(id, data);
+    const result = await sensorService.updateByUser(id, usuarioId, data);
     if (!result) {
       return res.status(404).json({ error: 'Sensor não encontrado.' });
     }
@@ -63,7 +73,9 @@ const updateSensor = async (req, res) => {
 const deleteSensor = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await sensorService.delete(id);
+    const usuarioId = req.loggedUser?.id;
+    
+    const result = await sensorService.deleteByUser(id, usuarioId);
     if (!result) {
       return res.status(404).json({ error: 'Sensor não encontrado.' });
     }

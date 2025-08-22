@@ -14,6 +14,12 @@ const SensoresSchema = new mongoose.Schema({
   foto_sensor: {
     type: Buffer, // Para armazenar binário (imagem)
     required: false,
+  },
+  // Campo para associar o sensor ao usuário proprietário
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true
   }
 }, {
   collection: "Sensores",

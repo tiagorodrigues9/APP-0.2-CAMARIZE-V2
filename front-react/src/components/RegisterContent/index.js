@@ -14,12 +14,50 @@ const RegisterContent = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
-  const isFormValid = name && email && password;
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordValid, setPasswordValid] = useState(false);
+  
+  // Validação de senha
+  const validatePassword = (password) => {
+    if (password.length < 8) {
+      return "A senha deve ter pelo menos 8 caracteres";
+    }
+    if (password.length > 30) {
+      return "A senha deve ter no máximo 30 caracteres";
+    }
+    
+    // Regex para permitir apenas A-Z, a-z, 0-9, @, _, *, ., -
+    const allowedChars = /^[A-Za-z0-9@_*.-]*$/;
+    if (!allowedChars.test(password)) {
+      return "A senha pode conter apenas letras (A-Z, a-z), números (0-9) e símbolos (@, _, *, ., -)";
+    }
+    
+    return "";
+  };
+
+  const handlePasswordChange = (e) => {
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+    const validationError = validatePassword(newPassword);
+    setPasswordError(validationError);
+    setPasswordValid(newPassword.length >= 8 && !validationError);
+  };
+
+  const isFormValid = name && email && password && !passwordError;
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setError("");
+    
+    // Validar senha antes de enviar
+    const passwordValidation = validatePassword(password);
+    if (passwordValidation) {
+      setPasswordError(passwordValidation);
+      return;
+    }
+    
     if (!name || !email || !password) return;
+    
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
       const response = await fetch(`${apiUrl}/users/register`, {
@@ -97,9 +135,9 @@ const RegisterContent = () => {
             type={showPassword ? "text" : "password"}
             name="password"
             placeholder="Senha"
-            className={styles.input}
+            className={`${styles.input} ${passwordError ? styles.inputError : passwordValid ? styles.inputValid : ''}`}
             value={password}
-            onChange={e => setPassword(e.target.value)}
+            onChange={handlePasswordChange}
             autoComplete="new-password"
             required
           />
@@ -117,6 +155,56 @@ const RegisterContent = () => {
             )}
           </span>
         </div>
+        
+        {/* Regras de senha */}
+        <div style={{ 
+          fontSize: '12px', 
+          color: '#666', 
+          marginBottom: '16px',
+          padding: '8px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '4px',
+          border: '1px solid #e9ecef'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Regras da senha:</div>
+          <div>• Mínimo 8 caracteres, máximo 30</div>
+          <div>• Apenas: A-Z, a-z, 0-9, @, _, *, ., -</div>
+        </div>
+        
+        {passwordError && (
+          <div style={{ 
+            color: '#dc3545', 
+            fontSize: '12px', 
+            marginBottom: '16px',
+            padding: '8px',
+            backgroundColor: '#f8d7da',
+            border: '1px solid #f5c6cb',
+            borderRadius: '4px'
+          }}>
+            {passwordError}
+          </div>
+        )}
+        
+        {passwordValid && (
+          <div style={{ 
+            color: '#28a745', 
+            fontSize: '12px', 
+            marginBottom: '16px',
+            padding: '8px',
+            backgroundColor: '#d4edda',
+            border: '1px solid #c3e6cb',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+            </svg>
+            Senha válida! ✅
+          </div>
+        )}
+        
         <div className={styles.rememberRow}>
           <input
             type="checkbox"

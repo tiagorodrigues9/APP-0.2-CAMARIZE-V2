@@ -54,16 +54,26 @@ export default function RelatorioGeral() {
 
   const handleSavePDF = async () => {
     if (typeof window !== 'undefined') {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const opt = {
-        margin:       [0.5, 0.5, 1, 0.5],
-        filename:     `relatorio-geral.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
-      };
-      html2pdf().set(opt).from(relatorioRef.current).save();
+      try {
+        // Usar uma abordagem mais simples e robusta
+        const html2pdf = await import('html2pdf.js');
+        const pdf = html2pdf.default || html2pdf;
+        
+        const opt = {
+          margin: 1,
+          filename: 'relatorio-geral.pdf',
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        pdf().set(opt).from(relatorioRef.current).save();
+      } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        // Fallback: tentar imprimir
+        alert('Erro ao gerar PDF. Usando impressão como alternativa.');
+        window.print();
+      }
     }
   };
 

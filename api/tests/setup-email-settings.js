@@ -5,8 +5,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Importar modelos
-import Users from './models/Users.js';
-import EmailSettings from './models/EmailSettings.js';
+import Users from '../models/Users.js';
+import EmailSettings from '../models/EmailSettings.js';
 
 async function setupEmailSettings() {
   try {

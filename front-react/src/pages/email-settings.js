@@ -89,7 +89,7 @@ export default function EmailSettingsPage() {
       {/* Content */}
       <div style={{
         padding: '24px',
-        maxWidth: '900px',
+        maxWidth: '1200px',
         margin: '0 auto'
       }}>
         <EmailSettings />

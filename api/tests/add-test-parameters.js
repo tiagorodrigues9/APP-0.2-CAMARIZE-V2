@@ -5,8 +5,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Importar modelos
-import Cativeiros from './models/Cativeiros.js';
-import ParametrosAtuais from './models/Parametros_atuais.js';
+import Cativeiros from '../models/Cativeiros.js';
+import ParametrosAtuais from '../models/Parametros_atuais.js';
 
 async function addTestParameters() {
   try {

@@ -10,8 +10,8 @@ async function fixEmailSettings() {
     console.log('✅ Conectado!');
 
     // Importar modelos
-    const Users = (await import('./models/Users.js')).default;
-    const EmailSettings = (await import('./models/EmailSettings.js')).default;
+    const Users = (await import('../models/Users.js')).default;
+    const EmailSettings = (await import('../models/EmailSettings.js')).default;
 
     // Buscar usuário
     const user = await Users.findOne({ email: 'joaooficialkusaka@gmail.com' });

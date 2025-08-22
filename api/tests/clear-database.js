@@ -2,21 +2,21 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 // Importar todos os modelos para garantir que as coleções sejam reconhecidas
-import './models/Users.js';
-import './models/Fazendas.js';
-import './models/Cativeiros.js';
-import './models/UsuariosxFazendas.js';
-import './models/FazendasxCativeiros.js';
-import './models/SensoresxCativeiros.js';
-import './models/Sensores.js';
-import './models/Parametros_atuais.js';
-import './models/Condicoes_ideais.js';
-import './models/EmailSettings.js';
-import './models/PushSubscriptions.js';
-import './models/Tipos_sensores.js';
-import './models/Especif_camaroes.js';
-import './models/Dietas.js';
-import './models/Camaroes.js';
+import '../models/Users.js';
+import '../models/Fazendas.js';
+import '../models/Cativeiros.js';
+import '../models/UsuariosxFazendas.js';
+import '../models/FazendasxCativeiros.js';
+import '../models/SensoresxCativeiros.js';
+import '../models/Sensores.js';
+import '../models/Parametros_atuais.js';
+import '../models/Condicoes_ideais.js';
+import '../models/EmailSettings.js';
+import '../models/PushSubscriptions.js';
+import '../models/Tipos_sensores.js';
+import '../models/Especif_camaroes.js';
+import '../models/Dietas.js';
+import '../models/Camaroes.js';
 
 dotenv.config();
 
@@ -29,19 +29,19 @@ async function clearDatabase() {
     // Lista de todas as coleções que queremos limpar
     const collections = [
       'users',
-      'fazendas', 
+      'Fazendas', 
       'cativeiros',
       'usuariosxfazendas',
       'fazendasxcativeiros',
-      'sensoresxcativeiros',
+      'SensoresxCativeiros',
       'sensores',
-      'parametrosatuais',
+      'parametros_atuais',
       'condicoesideais',
       'emailsettings',
       'pushsubscriptions',
-      'tipossensores',
-      'especifcamaroes',
-      'dietas',
+      'Tipos_sensor',
+      'especif_camarao',
+      'Dietas',
       'camaroes'
     ];
 

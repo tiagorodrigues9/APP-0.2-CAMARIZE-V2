@@ -2,8 +2,8 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 // Importar modelos
-import './models/Users.js';
-import './models/EmailSettings.js';
+import '../models/Users.js';
+import '../models/EmailSettings.js';
 
 dotenv.config();
 
@@ -18,8 +18,8 @@ async function setupUserEmail() {
     console.log(`\n🔍 Procurando usuário: ${userEmail}`);
 
     // Importar modelos após conexão
-    const Users = (await import('./models/Users.js')).default;
-    const EmailSettings = (await import('./models/EmailSettings.js')).default;
+    const Users = (await import('../models/Users.js')).default;
+    const EmailSettings = (await import('../models/EmailSettings.js')).default;
 
     // Buscar o usuário
     const user = await Users.findOne({ email: userEmail });

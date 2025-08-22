@@ -60,11 +60,6 @@ const createUser = async (req, res) => {
 
 // Cadastro completo (usuário + fazenda)
 const register = async (req, res) => {
-  // Adiciona headers CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  
   try {
     console.log("🔍 [REGISTER] Dados recebidos:", req.body);
     const { nome, email, senha, foto_perfil, fazenda } = req.body;
@@ -76,30 +71,6 @@ const register = async (req, res) => {
       return res.status(400).json({ 
         error: `Usuário com o email '${email}' já existe. Tente usar um email diferente ou faça login.` 
       });
-    }
-    
-    // 🔍 VALIDAR SE O EMAIL REALMENTE EXISTE
-    console.log("🔍 [REGISTER] Validando email:", email);
-    
-    // Verificar se a validação de email está habilitada
-    if (process.env.VALIDATE_EMAIL_ON_REGISTER !== 'false') {
-      const emailValidation = await emailService.validateEmailForSettings(email);
-      
-      if (!emailValidation.valid) {
-        console.log("❌ [REGISTER] Email inválido:", emailValidation.message);
-        return res.status(400).json({
-          error: `Email inválido: ${emailValidation.message}. Por favor, verifique se o email está correto.`
-        });
-      }
-      
-      if (emailValidation.warning) {
-        console.log("⚠️ [REGISTER] Aviso na validação do email:", emailValidation.message);
-        // Não bloqueia o cadastro, mas registra o aviso
-      }
-      
-      console.log("✅ [REGISTER] Email validado com sucesso");
-    } else {
-      console.log("⏭️ [REGISTER] Validação de email desabilitada");
     }
     
     let fazendaDoc = null;
@@ -124,11 +95,6 @@ const register = async (req, res) => {
 
 // Autenticando um usuário
 const loginUser = async (req, res) => {
-  // Adiciona headers CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  
   try {
     const { email, senha } = req.body;
     // Log dos dados recebidos

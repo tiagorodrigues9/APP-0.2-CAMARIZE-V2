@@ -5,10 +5,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Importar modelos
-import Users from './models/Users.js';
-import Cativeiros from './models/Cativeiros.js';
-import ParametrosAtuais from './models/Parametros_atuais.js';
-import EmailSettings from './models/EmailSettings.js';
+import Users from '../models/Users.js';
+import Cativeiros from '../models/Cativeiros.js';
+import ParametrosAtuais from '../models/Parametros_atuais.js';
+import EmailSettings from '../models/EmailSettings.js';
 
 async function checkEmailSettings() {
   try {

@@ -2,11 +2,11 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 // Importar todos os modelos necessários
-import './models/Users.js';
-import './models/Fazendas.js';
-import './models/Cativeiros.js';
-import './models/UsuariosxFazendas.js';
-import './models/FazendasxCativeiros.js';
+import '../models/Users.js';
+import '../models/Fazendas.js';
+import '../models/Cativeiros.js';
+import '../models/UsuariosxFazendas.js';
+import '../models/FazendasxCativeiros.js';
 
 dotenv.config();
 
@@ -19,9 +19,9 @@ async function checkData() {
     console.log('\n📊 Verificando dados...\n');
 
     // Importar modelos após conexão
-    const UsuariosxFazendas = (await import('./models/UsuariosxFazendas.js')).default;
-    const FazendasxCativeiros = (await import('./models/FazendasxCativeiros.js')).default;
-    const Cativeiros = (await import('./models/Cativeiros.js')).default;
+    const UsuariosxFazendas = (await import('../models/UsuariosxFazendas.js')).default;
+    const FazendasxCativeiros = (await import('../models/FazendasxCativeiros.js')).default;
+    const Cativeiros = (await import('../models/Cativeiros.js')).default;
 
     // Verificar UsuariosxFazendas (sem populate para evitar erro)
     const usuarios = await UsuariosxFazendas.find();

@@ -2,13 +2,13 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 // Importa modelos base para garantir registro dos schemas
-import './models/Users.js';
-import './models/Fazendas.js';
-import './models/Cativeiros.js';
-import './models/UsuariosxFazendas.js';
-import './models/FazendasxCativeiros.js';
-import './models/SensoresxCativeiros.js';
-import './models/Sensores.js';
+import '../models/Users.js';
+import '../models/Fazendas.js';
+import '../models/Cativeiros.js';
+import '../models/UsuariosxFazendas.js';
+import '../models/FazendasxCativeiros.js';
+import '../models/SensoresxCativeiros.js';
+import '../models/Sensores.js';
 
 dotenv.config();
 
@@ -21,13 +21,13 @@ async function cleanOrphans() {
         console.log('\n🧹 Limpando relacionamentos órfãos...\n');
 
         // Importar modelos após conexão
-        const FazendasxCativeiros = (await import('./models/FazendasxCativeiros.js')).default;
-        const UsuariosxFazendas = (await import('./models/UsuariosxFazendas.js')).default;
-        const SensoresxCativeiros = (await import('./models/SensoresxCativeiros.js')).default;
-        const Cativeiros = (await import('./models/Cativeiros.js')).default;
-        const Fazendas = (await import('./models/Fazendas.js')).default;
-        const Users = (await import('./models/Users.js')).default;
-        const Sensores = (await import('./models/Sensores.js')).default;
+            const FazendasxCativeiros = (await import('../models/FazendasxCativeiros.js')).default;
+    const UsuariosxFazendas = (await import('../models/UsuariosxFazendas.js')).default;
+    const SensoresxCativeiros = (await import('../models/SensoresxCativeiros.js')).default;
+    const Cativeiros = (await import('../models/Cativeiros.js')).default;
+    const Fazendas = (await import('../models/Fazendas.js')).default;
+    const Users = (await import('../models/Users.js')).default;
+    const Sensores = (await import('../models/Sensores.js')).default;
 
         // FazendasxCativeiros: remover quando cativeiro OU fazenda não existem
         const fxcAll = await FazendasxCativeiros.find();

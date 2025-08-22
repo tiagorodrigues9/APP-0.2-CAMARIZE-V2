@@ -226,17 +226,6 @@ export default function Settings() {
           style={{ display: "none" }}
           onChange={handleFileChange}
         />
-        {previewFoto && (
-          <button
-            type="button"
-            onClick={handleSalvarFoto}
-            disabled={salvandoFoto}
-            style={{ marginTop: 12, padding: '8px 18px', borderRadius: 8, background: '#a3c7f7', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '1rem' }}
-          >
-            {salvandoFoto ? 'Salvando...' : 'Salvar foto'}
-          </button>
-        )}
-
       </div>
       <div style={customStyles.userName}>{fazenda.nome || ""}</div>
       <div style={customStyles.userRole}>Sítio/Fazenda</div>
@@ -249,6 +238,27 @@ export default function Settings() {
         <input style={customStyles.input} value={fazenda.rua || ""} disabled />
         <label style={customStyles.label}>Número</label>
         <input style={customStyles.input} value={fazenda.numero || ""} disabled />
+        {previewFoto && (
+          <button
+            type="button"
+            onClick={handleSalvarFoto}
+            disabled={salvandoFoto}
+            style={{ 
+              marginTop: 16, 
+              padding: '12px 24px', 
+              borderRadius: 8, 
+              background: '#a3c7f7', 
+              color: '#fff', 
+              border: 'none', 
+              fontWeight: 600, 
+              cursor: 'pointer', 
+              fontSize: '1rem',
+              width: '100%'
+            }}
+          >
+            {salvandoFoto ? 'Salvando...' : 'Salvar foto'}
+          </button>
+        )}
       </form>
 
       {/* Seção de Configurações Avançadas */}

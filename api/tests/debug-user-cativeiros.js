@@ -3,11 +3,11 @@ import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 
 // Importar todos os modelos necessários
-import './models/Users.js';
-import './models/Fazendas.js';
-import './models/Cativeiros.js';
-import './models/UsuariosxFazendas.js';
-import './models/FazendasxCativeiros.js';
+import '../models/Users.js';
+import '../models/Fazendas.js';
+import '../models/Cativeiros.js';
+import '../models/UsuariosxFazendas.js';
+import '../models/FazendasxCativeiros.js';
 
 dotenv.config();
 
@@ -20,10 +20,10 @@ async function debugUserCativeiros() {
     console.log('\n📊 Verificando dados do usuário...\n');
 
     // Importar modelos após conexão
-    const UsuariosxFazendas = (await import('./models/UsuariosxFazendas.js')).default;
-    const FazendasxCativeiros = (await import('./models/FazendasxCativeiros.js')).default;
-    const Cativeiros = (await import('./models/Cativeiros.js')).default;
-    const Users = (await import('./models/Users.js')).default;
+    const UsuariosxFazendas = (await import('../models/UsuariosxFazendas.js')).default;
+    const FazendasxCativeiros = (await import('../models/FazendasxCativeiros.js')).default;
+    const Cativeiros = (await import('../models/Cativeiros.js')).default;
+    const Users = (await import('../models/Users.js')).default;
 
     // Listar todos os usuários
     const users = await Users.find();

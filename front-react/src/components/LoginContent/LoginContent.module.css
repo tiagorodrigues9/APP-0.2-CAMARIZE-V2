@@ -50,6 +50,22 @@
   border: 1.5px solid #bdbdbd;
 }
 
+.inputError {
+  border: 1.5px solid #dc3545 !important;
+  background: #fff5f5;
+}
+.inputError:focus {
+  border: 1.5px solid #dc3545 !important;
+}
+
+.inputValid {
+  border: 1.5px solid #28a745 !important;
+  background: #f8fff9;
+}
+.inputValid:focus {
+  border: 1.5px solid #28a745 !important;
+}
+
 .eyeIcon {
   position: absolute;
   right: 12px;

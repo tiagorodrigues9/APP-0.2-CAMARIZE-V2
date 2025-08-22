@@ -5,10 +5,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Importar modelos
-import Users from './models/Users.js';
-import Cativeiros from './models/Cativeiros.js';
-import FazendasxCativeiros from './models/FazendasxCativeiros.js';
-import UsuariosxFazendas from './models/UsuariosxFazendas.js';
+import Users from '../models/Users.js';
+import Cativeiros from '../models/Cativeiros.js';
+import FazendasxCativeiros from '../models/FazendasxCativeiros.js';
+import UsuariosxFazendas from '../models/UsuariosxFazendas.js';
 
 async function associateCativeirosToUsers() {
   try {

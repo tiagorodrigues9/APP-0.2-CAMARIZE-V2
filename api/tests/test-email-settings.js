@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import EmailSettings from './models/EmailSettings.js';
+import EmailSettings from '../models/EmailSettings.js';
 
 dotenv.config();
 
