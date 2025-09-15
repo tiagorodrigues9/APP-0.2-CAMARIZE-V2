@@ -3,9 +3,6 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import readline from 'readline';
-import Cativeiros from "../api/models/Cativeiros.js";
-import ParametrosAtuais from "../api/models/Parametros_atuais.js";
-import TiposCamarao from "../api/models/Camaroes.js";
 
 // Carrega as variáveis de ambiente
 dotenv.config({ path: './api/.env' });
@@ -38,8 +35,11 @@ async function populateSpecificCativeiros() {
     // Aguardar um pouco para garantir que a conexão está estável
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Buscar cativeiros existentes (sem populate para evitar erro)
-    const cativeiros = await Cativeiros.find().maxTimeMS(30000);
+    // Usar a conexão direta do MongoDB
+    const db = mongoose.connection.db;
+    
+    // Buscar cativeiros existentes
+    const cativeiros = await db.collection('cativeiros').find({}).toArray();
     console.log(`📋 Encontrados ${cativeiros.length} cativeiros`);
     
     if (cativeiros.length === 0) {
@@ -48,7 +48,7 @@ async function populateSpecificCativeiros() {
     }
     
     // Buscar tipos de camarão para mostrar informações
-    const tiposCamarao = await TiposCamarao.find();
+    const tiposCamarao = await db.collection('especif_camarao').find({}).toArray();
     const tiposMap = {};
     tiposCamarao.forEach(tipo => {
       tiposMap[tipo._id.toString()] = tipo.nome;
@@ -105,23 +105,23 @@ async function populateSpecificCativeiros() {
       return;
     }
     
-    // Criar registro
-    const novoParametro = new ParametrosAtuais({
+    // Criar registro usando a conexão direta
+    const novoParametro = {
       datahora: new Date(),
       temp_atual: temp,
       ph_atual: phValue,
       amonia_atual: amoniaValue,
       id_cativeiro: cativeiroEscolhido._id
-    });
+    };
     
-    await novoParametro.save();
+    const result = await db.collection('parametros_atuais').insertOne(novoParametro);
     
     console.log("\n✅ Parâmetro inserido com sucesso!");
-    console.log(`📊 ID do registro: ${novoParametro._id}`);
+    console.log(`📊 ID do registro: ${result.insertedId}`);
     
     // Mostrar estatísticas
-    const totalParametros = await ParametrosAtuais.countDocuments();
-    const parametrosCativeiro = await ParametrosAtuais.countDocuments({ 
+    const totalParametros = await db.collection('parametros_atuais').countDocuments();
+    const parametrosCativeiro = await db.collection('parametros_atuais').countDocuments({ 
       id_cativeiro: cativeiroEscolhido._id 
     });
     
@@ -148,4 +148,5 @@ async function populateSpecificCativeiros() {
   }
 }
 
-populateSpecificCativeiros(); 
+populateSpecificCativeiros();
+
