@@ -28,6 +28,12 @@ export default function HomeContent() {
   const addRef = useRef(null);
   const downloadRef = useRef(null);
   const firstCativeiroRef = useRef(null);
+  // Refs NavBottom
+  const navHomeRef = useRef(null);
+  const navSettingsRef = useRef(null);
+  const navPlusRef = useRef(null);
+  const navNotificationsRef = useRef(null);
+  const navProfileRef = useRef(null);
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -309,7 +315,13 @@ export default function HomeContent() {
         <img src="/images/logo_camarize1.png" alt="Logo" style={{ height: 24 }} />
       </div>
       
-      <NavBottom />
+      <NavBottom 
+        homeRef={navHomeRef}
+        settingsRef={navSettingsRef}
+        plusRef={navPlusRef}
+        notificationsRef={navNotificationsRef}
+        profileRef={navProfileRef}
+      />
 
       {/* Tour guiado - somente na primeira visita */}
       {showTour && (
@@ -322,6 +334,12 @@ export default function HomeContent() {
               { ref: sensoresRef, title: 'Sensores', content: 'Gerencie sensores instalados e verifique o funcionamento.' },
               { ref: addRef, title: 'Adicionar cativeiro', content: 'Cadastre um novo cativeiro para começar a monitorar.' },
               { ref: downloadRef, title: 'Relatórios', content: 'Baixe relatórios com os principais indicadores por período.' },
+              // Etapas da NavBar inferior
+              { ref: navHomeRef, title: 'Início', content: 'Volte para a tela inicial a qualquer momento.', placement: 'top' },
+              { ref: navSettingsRef, title: 'Configurações', content: 'Ajuste preferências e integrações.', placement: 'top' },
+              { ref: navPlusRef, title: 'Atalho de Cadastro', content: 'Adicione cativeiros rapidamente por aqui.', placement: 'top' },
+              { ref: navNotificationsRef, title: 'Notificações', content: 'Veja alertas e históricos importantes.', placement: 'top' },
+              { ref: navProfileRef, title: 'Perfil', content: 'Acesse dados da sua conta.', placement: 'top' },
             ].filter(s => s.ref && s.ref.current)
           }
           onFinish={() => {

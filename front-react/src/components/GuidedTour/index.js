@@ -9,6 +9,7 @@ import styles from "./GuidedTour.module.css";
 export default function GuidedTour({ steps, onFinish }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [arrowOffset, setArrowOffset] = useState({ left: '50%', top: '50%' });
   const [placement, setPlacement] = useState("bottom");
   const [visible, setVisible] = useState(false);
   const tooltipRef = useRef(null);
@@ -49,11 +50,22 @@ export default function GuidedTour({ steps, onFinish }) {
     }
 
     // Keep inside viewport horizontally
-    left = Math.max(12, Math.min(left, window.innerWidth - tooltip.width - 12));
-    top = Math.max(12, Math.min(top, window.innerHeight - tooltip.height - 12));
+    const clampedLeft = Math.max(12, Math.min(left, window.innerWidth - tooltip.width - 12));
+    const clampedTop = Math.max(12, Math.min(top, window.innerHeight - tooltip.height - 12));
+
+    // Compute arrow offset so that arrow points to target center even if clamped
+    const targetCenterX = rect.left + rect.width / 2;
+    const targetCenterY = rect.top + rect.height / 2;
+    const arrowLeftPx = targetCenterX - clampedLeft;
+    const arrowTopPx = targetCenterY - clampedTop;
+
+    setArrowOffset({
+      left: `${Math.max(12, Math.min(arrowLeftPx, tooltip.width - 12))}px`,
+      top: `${Math.max(12, Math.min(arrowTopPx, tooltip.height - 12))}px`,
+    });
 
     setPlacement(actualPlacement);
-    setPosition({ top, left });
+    setPosition({ top: clampedTop, left: clampedLeft });
   };
 
   useEffect(() => {
@@ -101,7 +113,12 @@ export default function GuidedTour({ steps, onFinish }) {
       <div
         ref={tooltipRef}
         className={`${styles.tooltip} ${visible ? styles.visible : ""} ${styles[placement]}`}
-        style={{ top: position.top + window.scrollY, left: position.left + window.scrollX }}
+        style={{ 
+          top: position.top + window.scrollY, 
+          left: position.left + window.scrollX,
+          '--arrow-left': arrowOffset.left,
+          '--arrow-top': arrowOffset.top
+        }}
       >
         {currentStep.title && <div className={styles.title}>{currentStep.title}</div>}
         <div className={styles.content}>{currentStep.content}</div>
