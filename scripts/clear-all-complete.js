@@ -2,23 +2,24 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 // Importar todos os modelos para garantir que as coleções sejam reconhecidas
-import '../models/Users.js';
-import '../models/Fazendas.js';
-import '../models/Cativeiros.js';
-import '../models/UsuariosxFazendas.js';
-import '../models/FazendasxCativeiros.js';
-import '../models/SensoresxCativeiros.js';
-import '../models/Sensores.js';
-import '../models/Parametros_atuais.js';
-import '../models/Condicoes_ideais.js';
-import '../models/EmailSettings.js';
-import '../models/PushSubscriptions.js';
-import '../models/Tipos_sensores.js';
-import '../models/Especif_camaroes.js';
-import '../models/Dietas.js';
-import '../models/Camaroes.js';
+import '../api/models/Users.js';
+import '../api/models/Fazendas.js';
+import '../api/models/Cativeiros.js';
+import '../api/models/UsuariosxFazendas.js';
+import '../api/models/FazendasxCativeiros.js';
+import '../api/models/SensoresxCativeiros.js';
+import '../api/models/Sensores.js';
+import '../api/models/Parametros_atuais.js';
+import '../api/models/Condicoes_ideais.js';
+import '../api/models/EmailSettings.js';
+import '../api/models/PushSubscriptions.js';
+import '../api/models/Tipos_sensores.js';
+import '../api/models/Especif_camaroes.js';
+import '../api/models/Dietas.js';
+import '../api/models/Camaroes.js';
 
-dotenv.config();
+// Carregar .env da API (onde normalmente está o MONGO_URL)
+dotenv.config({ path: './api/.env' });
 
 async function clearAllComplete() {
   try {
@@ -83,7 +84,7 @@ async function clearAllComplete() {
     
     if (confirmation !== 'LIMPAR_TUDO') {
       console.log('\n❌ Operação cancelada. Para executar, use:');
-      console.log('   node tests/clear-all-complete.js LIMPAR_TUDO');
+      console.log('   node scripts/clear-all-complete.js LIMPAR_TUDO');
       console.log('\n💡 Este comando limpa TUDO do banco!');
       await mongoose.disconnect();
       return;

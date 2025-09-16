@@ -759,7 +759,7 @@ foto_sensor: [arquivo]
 
 ### Login
 ```bash
-curl -X POST https://api-camarize.vercel.app/users/auth \
+curl -X POST http://localhost:4000/users/auth \
   -H "Content-Type: application/json" \
   -d '{
     "email": "joao@email.com",
@@ -769,7 +769,7 @@ curl -X POST https://api-camarize.vercel.app/users/auth \
 
 ### Cadastrar Cativeiro (com autenticação)
 ```bash
-curl -X POST https://api-camarize.vercel.app/cativeiros \
+curl -X POST http://localhost:4000/cativeiros \
   -H "Authorization: Bearer SEU_TOKEN_JWT" \
   -F "nome=Cativeiro A1" \
   -F "descricao=Cativeiro principal" \
@@ -785,13 +785,13 @@ curl -X POST https://api-camarize.vercel.app/cativeiros \
 
 ### Buscar Cativeiros
 ```bash
-curl -X GET https://api-camarize.vercel.app/cativeiros \
+curl -X GET http://localhost:4000/cativeiros \
   -H "Authorization: Bearer SEU_TOKEN_JWT"
 ```
 
 ### Cadastrar Dados dos Sensores (ESP32)
 ```bash
-curl -X POST https://api-camarize.vercel.app/parametros/cadastrar \
+curl -X POST http://localhost:4000/parametros/cadastrar \
   -H "Content-Type: application/json" \
   -d '{
     "cativeiroId": "64f8a1b2c3d4e5f6a7b8c9d5",
@@ -816,12 +816,7 @@ curl -X POST https://api-camarize.vercel.app/parametros/cadastrar \
 
 ---
 
-## 🚀 Deploy
-
-A API está hospedada no Vercel e pode ser acessada em:
-```
-https://api-camarize.vercel.app
-```
+## 🚀 Execução local
 
 Para desenvolvimento local, a API roda na porta 4000:
 ```

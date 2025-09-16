@@ -12,7 +12,7 @@ O projeto foi organizado em pastas específicas para melhor manutenção e organ
 - `EMAIL_SETTINGS_README.md` - Configuração de emails
 - `EMAIL_ALERTS_README.md` - Sistema de alertas por email
 - `NGROK_SETUP.md` - Configuração do Ngrok
-- `DEPLOY_VERCEL.md` - Deploy no Vercel
+ 
 - `MONGODB_ATLAS_SETUP.md` - Configuração do MongoDB Atlas
 - `README_ESP32.md` - Documentação do ESP32
 - E outros arquivos de documentação...
@@ -27,7 +27,7 @@ O projeto foi organizado em pastas específicas para melhor manutenção e organ
 ### 🧰 **tools/** - Ferramentas e Configurações
 - Arquivos de configuração do Ngrok
 - Configurações do Docker
-- Configurações do Vercel
+ 
 - Executáveis e arquivos de ferramentas
 
 ### 🚀 **api/** - Backend da Aplicação

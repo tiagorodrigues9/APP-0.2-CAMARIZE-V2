@@ -44,16 +44,22 @@ export default function CreateSensoresPage() {
     formData.append('apelido', apelido);
     if (arquivo) formData.append('foto_sensor', arquivo);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       await axios.post(`${apiUrl}/sensores`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
       });
       showNotification('Sensor cadastrado com sucesso!');
       // Aguardar 2 segundos antes de redirecionar para a notificação aparecer
       setTimeout(() => {
         router.push('/sensores');
       }, 2000);
-    } catch {
-      showNotification('Erro ao cadastrar sensor.', 'error');
+    } catch (err) {
+      console.error('Erro ao cadastrar sensor:', err);
+      const apiMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Erro ao cadastrar sensor.';
+      showNotification(apiMsg, 'error');
     } finally {
       setLoading(false);
     }

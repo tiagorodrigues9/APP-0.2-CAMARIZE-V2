@@ -1,14 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-export default function Notification({ message, type = 'success', isVisible, onClose, duration = 3000 }) {
+export default function Notification({ message, type = 'success', isVisible, onClose, duration = 3000, actionLabel, onAction, showProgress = false, progressDuration, onTimeout }) {
+  const [animKey, setAnimKey] = useState(0);
   useEffect(() => {
     if (isVisible && duration > 0) {
       const timer = setTimeout(() => {
+        try { onTimeout && onTimeout(); } catch {}
         onClose();
       }, duration);
       return () => clearTimeout(timer);
     }
   }, [isVisible, duration, onClose]);
+
+  // Reinicia a animação sempre que a notificação é mostrada ou o conteúdo muda
+  useEffect(() => {
+    if (isVisible) {
+      setAnimKey((k) => k + 1);
+    }
+  }, [isVisible, message, type]);
 
   if (!isVisible) return null;
 
@@ -42,45 +51,28 @@ export default function Notification({ message, type = 'success', isVisible, onC
   };
 
   const getStyles = () => {
-    switch (type) {
-      case 'success':
-        return {
-          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-          borderColor: '#047857',
-          iconColor: '#000'
-        };
-      case 'error':
-        return {
-          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-          borderColor: '#b91c1c',
-          iconColor: '#000'
-        };
-      case 'warning':
-        return {
-          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-          borderColor: '#b45309',
-          iconColor: '#000'
-        };
-      default:
-        return {
-          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-          borderColor: '#1d4ed8',
-          iconColor: '#000'
-        };
-    }
+    // Tema único em azul bebê para todos os tipos
+    return {
+      background: 'linear-gradient(135deg, #60a5fa 0%, #2563eb 100%)', // azul com maior contraste
+      borderColor: '#1e40af',
+      iconColor: '#fff'
+    };
   };
 
   const styles = getStyles();
 
   return (
-    <div 
+    <>
+    <div key={animKey}
       style={{
         position: 'fixed',
-        top: '20px',
-        right: '20px',
+        top: '56px',
+        left: '50%',
+        transform: 'translate(-50%, -20px) scale(0.98)',
+        right: 'auto',
         zIndex: 9999,
-        minWidth: '320px',
-        maxWidth: '400px',
+        minWidth: '380px',
+        maxWidth: '92vw',
         background: styles.background,
         border: `1px solid ${styles.borderColor}`,
         borderRadius: '12px',
@@ -89,13 +81,14 @@ export default function Notification({ message, type = 'success', isVisible, onC
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
-        color: '#000',
+        color: '#fff',
         fontSize: '14px',
         fontWeight: '500',
         lineHeight: '1.4',
-        transform: 'translateX(0)',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        animation: 'notificationSlideIn 0.3s ease-out'
+        opacity: 0,
+        willChange: 'transform, opacity',
+        animation: 'toastSlideDown 600ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards',
+        overflow: 'hidden'
       }}
     >
       <div style={{ color: styles.iconColor, flexShrink: 0 }}>
@@ -104,19 +97,37 @@ export default function Notification({ message, type = 'success', isVisible, onC
       <div style={{ flex: 1 }}>
         {message}
       </div>
+      {actionLabel && onAction && (
+        <button
+          onClick={onAction}
+          style={{
+            background: 'rgba(255,255,255,0.15)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.35)',
+            borderRadius: '8px',
+            padding: '8px 10px',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '12px',
+            marginRight: '8px'
+          }}
+        >
+          {actionLabel}
+        </button>
+      )}
       <button
         onClick={onClose}
         style={{
           background: 'none',
           border: 'none',
-          color: styles.iconColor,
+          color: 'rgba(255,255,255,0.85)',
           cursor: 'pointer',
           padding: '4px',
           borderRadius: '4px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: 0.8,
+          opacity: 0.9,
           transition: 'opacity 0.2s'
         }}
         onMouseOver={(e) => e.target.style.opacity = '1'}
@@ -126,6 +137,43 @@ export default function Notification({ message, type = 'success', isVisible, onC
           <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
+      {showProgress && (
+        <div style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 6,
+          background: 'rgba(255,255,255,0.15)'
+        }}>
+          <div style={{
+            height: '100%',
+            borderRadius: 0,
+            background: 'linear-gradient(90deg, #f472b6 0%, #fb7185 100%)',
+            width: '100%',
+            animation: `toastProgress ${progressDuration || duration}ms linear forwards`
+          }} />
+        </div>
+      )}
     </div>
+    <style jsx>{`
+      @keyframes toastSlideDown {
+        0% { transform: translate(-50%, -24px) scale(0.98); opacity: 0; }
+        55% { transform: translate(-50%, 6px) scale(1); opacity: 1; }
+        80% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+        100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+      }
+      @keyframes toastProgress {
+        from { width: 100%; }
+        to { width: 0%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        @keyframes toastSlideDown {
+          0% { transform: translate(-50%, 0); opacity: 0; }
+          100% { transform: translate(-50%, 0); opacity: 1; }
+        }
+      }
+    `}</style>
+    </>
   );
 } 

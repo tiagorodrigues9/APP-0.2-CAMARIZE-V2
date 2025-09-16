@@ -46,7 +46,10 @@ class cativeiroService {
       // Buscar sensores relacionados
       const SensoresxCativeiros = (await import('../models/SensoresxCativeiros.js')).default;
       const sensoresRelacionados = await SensoresxCativeiros.find({ id_cativeiro: id }).populate('id_sensor');
-      const sensores = sensoresRelacionados.map(rel => rel.id_sensor);
+      // Alguns relacionamentos podem apontar para sensores removidos → filtrar nulls
+      const sensores = sensoresRelacionados
+        .map(rel => rel.id_sensor)
+        .filter(Boolean);
 
       // Adicionar sensores ao objeto do cativeiro
       cativeiro.sensores = sensores;

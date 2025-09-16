@@ -39,7 +39,10 @@ export default function EditSensorPage() {
   const fetchSensor = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const res = await axios.get(`${apiUrl}/sensores/${id}`);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const res = await axios.get(`${apiUrl}/sensores/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       const sensorData = res.data;
       
       setTipoSelecionado(sensorData.id_tipo_sensor || '');
@@ -54,7 +57,8 @@ export default function EditSensorPage() {
       setDataLoaded(true);
     } catch (err) {
       console.error('Erro ao buscar sensor:', err);
-      showNotification('Erro ao carregar dados do sensor', 'error');
+      const apiMsg = err?.response?.data?.error || err?.response?.data?.message || 'Erro ao carregar dados do sensor';
+      showNotification(apiMsg, 'error');
       router.push('/sensores');
     }
   };

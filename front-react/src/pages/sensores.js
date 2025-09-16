@@ -173,7 +173,9 @@ export default function SensoresPage() {
       });
       
       // Recarregar a lista de sensores
-      const res = await axios.get(`${apiUrl}/sensores`);
+      const res = await axios.get(`${apiUrl}/sensores`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       setSensores(res.data);
       setSensoresFiltrados(res.data); // Atualizar filtrados após exclusão
       
@@ -182,7 +184,8 @@ export default function SensoresPage() {
       showNotification('Sensor excluído com sucesso!', 'success');
     } catch (err) {
       console.error('Erro ao deletar sensor:', err);
-      showNotification('Erro ao excluir sensor', 'error');
+      const apiMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Erro ao excluir sensor';
+      showNotification(apiMsg, 'error');
       setShowDeleteModal(false);
       setSensorToDelete(null);
     }

@@ -97,12 +97,16 @@ export default function EditCativeiroPage() {
     async function fetchSensores() {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const res = await axios.get(`${apiUrl}/sensores`);
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const res = await axios.get(`${apiUrl}/sensores`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         console.log('Sensores carregados:', res.data);
         setSensoresDisponiveis(res.data);
       } catch (err) {
         console.error('Erro ao carregar sensores:', err);
         setSensoresDisponiveis([]);
+        showNotification('Erro ao carregar lista de sensores', 'error');
       }
     }
     
@@ -116,7 +120,10 @@ export default function EditCativeiroPage() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
       console.log('Buscando cativeiro com ID:', id);
-      const res = await axios.get(`${apiUrl}/cativeiros/${id}`);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const res = await axios.get(`${apiUrl}/cativeiros/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       const cativeiroData = res.data;
       console.log('Dados do cativeiro carregados:', cativeiroData);
       console.log('Campo fazenda do cativeiro:', cativeiroData.fazenda);
@@ -175,7 +182,8 @@ export default function EditCativeiroPage() {
       setLoading(false);
     } catch (err) {
       console.error('Erro ao buscar cativeiro:', err);
-      showNotification('Erro ao carregar dados do cativeiro', 'error');
+      const apiMsg = err?.response?.data?.error || err?.response?.data?.message || 'Erro ao carregar dados do cativeiro';
+      showNotification(apiMsg, 'error');
       router.push('/home');
     }
   };

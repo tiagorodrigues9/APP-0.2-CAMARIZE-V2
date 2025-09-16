@@ -28,15 +28,9 @@ import './models/UsuariosxFazendas.js';
 
 const app = express();
 const allowedOrigins = [
-  "https://front-react-sigma.vercel.app",
   "http://localhost:3000",
   "http://localhost:3001",
-  "https://frontend-kappa-liard-17.vercel.app",
-  "https://camarize.vercel.app",
-  "https://front-react-k935om7gr-joao-kusakas-projects.vercel.app",
   // Permitir domínios ngrok
-  /^https:\/\/.*\.ngrok-free\.app$/,
-  /^https:\/\/.*\.ngrok\.io$/,
   /^https:\/\/.*\.ngrok-free\.app$/,
   /^https:\/\/.*\.ngrok\.io$/,
   // Permitir qualquer origem durante desenvolvimento
@@ -91,7 +85,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// ✅ Rota de health check para Vercel
+// ✅ Rota de health check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -144,20 +138,12 @@ mongoose.connect(mongoUrl, mongooseOptions)
   console.error("🔧 Verifique se a string de conexão está correta no arquivo .env");
 });
 
-// Para Vercel (serverless), não usamos app.listen()
-// O Vercel gerencia o servidor automaticamente
-
-// Exporta o app para o Vercel
-export default app;
-
-// Para desenvolvimento local, inicia o servidor
-if (process.env.NODE_ENV !== 'production') {
-  const port = process.env.PORT || 4000;
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`🚀 API rodando em http://localhost:${port}.`);
-    console.log('✅ Servidor pronto para receber requisições!');
-  });
-}
+// Inicia o servidor em ambiente padrão
+const port = process.env.PORT || 4000;
+app.listen(port, '0.0.0.0', () => {
+  console.log(`🚀 API rodando em http://localhost:${port}.`);
+  console.log('✅ Servidor pronto para receber requisições!');
+});
 
 // Event listeners para monitorar a conexão
 mongoose.connection.on('error', (err) => {

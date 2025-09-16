@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/router";
 import styles from "../components/ProfileContent/ProfileContent.module.css";
 import NavBottom from "../components/NavBottom";
 import Notification from "../components/Notification";
@@ -8,6 +9,7 @@ import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 
 export default function Profile() {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -75,6 +77,29 @@ export default function Profile() {
       showNotification("Erro ao salvar foto.", 'error');
     } finally {
       setSalvandoFoto(false);
+    }
+  };
+
+  const handleShowTourAgain = () => {
+    try {
+      const getCurrentUserId = () => {
+        try {
+          const raw = localStorage.getItem('usuarioCamarize');
+          if (!raw) return null;
+          const u = JSON.parse(raw);
+          return u?._id || u?.id || u?.userId || null;
+        } catch {
+          return null;
+        }
+      };
+      const userId = getCurrentUserId();
+      const tourKey = userId ? `camarize_home_tour_done_${userId}` : 'camarize_home_tour_done';
+      localStorage.removeItem(tourKey);
+      // Feedback ao usuário e redireciona para Home para iniciar o tour novamente
+      showNotification('Tutorial reativado. Abrindo tela inicial...', 'success');
+      setTimeout(() => router.push('/home'), 600);
+    } catch {
+      router.push('/home');
     }
   };
 
@@ -240,6 +265,32 @@ export default function Profile() {
             </div>
           )}
         </div>
+          <div style={{
+            marginTop: '16px',
+            marginBottom: '80px',
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center'
+          }}>
+            <button
+              type="button"
+              onClick={handleShowTourAgain}
+              style={{
+                background: '#6366f1',
+                color: 'white',
+                border: 'none',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '15px',
+                fontWeight: 600,
+                boxShadow: '0 6px 24px rgba(99,102,241,0.35)'
+              }}
+              aria-label="Mostrar tutorial novamente"
+            >
+              Mostrar tutorial novamente
+            </button>
+          </div>
       </div>
       <NavBottom />
       <Notification

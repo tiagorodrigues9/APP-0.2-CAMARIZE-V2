@@ -170,7 +170,7 @@ EMAIL_USER=camarize.alertas@gmail.com
 EMAIL_PASS=sua_senha_de_app_gmail
 
 # URL do Frontend (para links nos emails)
-FRONTEND_URL=https://camarize.vercel.app
+FRONTEND_URL=http://localhost:3000
 ```
 
 ### Dependências

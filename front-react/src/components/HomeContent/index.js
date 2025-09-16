@@ -18,8 +18,9 @@ export default function HomeContent() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [cativeiroToDelete, setCativeiroToDelete] = useState(null);
-  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success', actionLabel: null, onAction: null });
   const [showTour, setShowTour] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState({}); // id -> { timeoutId }
 
   // Refs para o tour
   const infoRef = useRef(null);
@@ -35,45 +36,43 @@ export default function HomeContent() {
   const navNotificationsRef = useRef(null);
   const navProfileRef = useRef(null);
 
-  const showNotification = (message, type = 'success') => {
-    setNotification({ show: true, message, type });
+  const showNotification = (message, type = 'success', actionLabel = null, onAction = null) => {
+    setNotification({ show: true, message, type, actionLabel, onAction });
   };
 
   const hideNotification = () => {
     setNotification({ show: false, message: '', type: 'success' });
   };
 
-  useEffect(() => {
-    async function fetchCativeiros() {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        
-        if (!token) {
-          setError('Você precisa estar logado para acessar esta página');
-          setLoading(false);
-          return;
-        }
-        
-        const res = await axios.get(`${apiUrl}/cativeiros`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setCativeiros(res.data);
-      } catch (err) {
-        console.error('Erro ao buscar cativeiros:', err);
-        if (err.response?.status === 401) {
-          setError('Sessão expirada. Faça login novamente para continuar.');
-        } else {
-          setError('Erro ao carregar os dados. Tente novamente.');
-        }
-        setCativeiros([]);
-      } finally {
+  const fetchCativeiros = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      if (!token) {
+        setError('Você precisa estar logado para acessar esta página');
         setLoading(false);
+        return;
       }
+      const res = await axios.get(`${apiUrl}/cativeiros`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCativeiros(res.data);
+    } catch (err) {
+      console.error('Erro ao buscar cativeiros:', err);
+      if (err.response?.status === 401) {
+        setError('Sessão expirada. Faça login novamente para continuar.');
+      } else {
+        setError('Erro ao carregar os dados. Tente novamente.');
+      }
+      setCativeiros([]);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchCativeiros();
   }, []);
 
@@ -95,28 +94,35 @@ export default function HomeContent() {
   const confirmDelete = async () => {
     if (!cativeiroToDelete) return;
 
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      await axios.delete(`${apiUrl}/cativeiros/${cativeiroToDelete}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      
-      // Recarregar a lista de cativeiros
-      const res = await axios.get(`${apiUrl}/cativeiros`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      setCativeiros(res.data);
-      
+    // Exclusão com atraso + janela de desfazer (sem remover visualmente até confirmar)
+    const id = cativeiroToDelete;
+    if (!cativeiros.some((c) => c._id === id)) {
       setShowDeleteModal(false);
       setCativeiroToDelete(null);
-      showNotification('Cativeiro excluído com sucesso!', 'success');
-    } catch (err) {
-      console.error('Erro ao deletar cativeiro:', err);
-      showNotification('Erro ao excluir cativeiro', 'error');
-      setShowDeleteModal(false);
-      setCativeiroToDelete(null);
+      return;
     }
+    setShowDeleteModal(false);
+    setCativeiroToDelete(null);
+
+    // Armazena intenção e delega o disparo ao timeout do toast
+    const timeoutId = setTimeout(() => {}, 3000); // placeholder apenas para registro
+
+    setPendingDeletion((prev) => ({
+      ...prev,
+      [id]: { timeoutId }
+    }));
+
+    // Notificação com desfazer real (sem tocar no backend se desfizer)
+    showNotification('Cativeiro marcado para exclusão', 'warning', 'Desfazer', () => {
+      const pending = pendingDeletion[id] || { timeoutId };
+      clearTimeout(pending.timeoutId);
+      setPendingDeletion((prev) => {
+        const cp = { ...prev };
+        delete cp[id];
+        return cp;
+      });
+      showNotification('Exclusão desfeita.', 'success');
+    });
   };
 
   const handleDownloadClick = () => {
@@ -159,9 +165,29 @@ export default function HomeContent() {
     return <AuthError error={error} onRetry={() => window.location.reload()} />;
   }
 
-  // Se está carregando, mostrar loading
+  // Se está carregando, mostrar skeletons
   if (loading) {
-    return <Loading message="Carregando..." />;
+    return (
+      <>
+        <div className={styles.container}>
+          <div className={styles.header} />
+          <div className={styles.cativeiroList}>
+            <div className={styles.skeletonList}>
+              {[1,2,3,4].map((i) => (
+                <div className={styles.skeletonItem} key={i}>
+                  <div className={styles.skeletonThumb} />
+                  <div>
+                    <div className={`${styles.skeletonText} ${styles.long}`} />
+                    <div className={`${styles.skeletonText} ${styles.short}`} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <NavBottom />
+      </>
+    );
   }
 
   return (
@@ -231,6 +257,27 @@ export default function HomeContent() {
         {cativeiros.length === 0 ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyMessage}>Sem cativeiros cadastrados</div>
+            <div style={{
+              marginTop: '12px',
+              width: '100%',
+              maxWidth: 480,
+              border: '1px solid #dbeafe',
+              background: '#eff6ff',
+              color: '#1e40af',
+              borderRadius: 12,
+              padding: '16px'
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Comece por aqui</div>
+              <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 12 }}>Crie seu primeiro cativeiro e conecte sensores para ver dados no dashboard.</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => router.push('/create-cativeiros')} style={{
+                  background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontWeight: 600
+                }}>+ Cadastrar cativeiro</button>
+                <button onClick={() => router.push('/sensores')} style={{
+                  background: '#111827', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontWeight: 600
+                }}>🔧 Gerenciar sensores</button>
+              </div>
+            </div>
           </div>
         ) : (
           cativeiros.map((cativeiro, idx) => {
@@ -611,6 +658,39 @@ export default function HomeContent() {
           message={notification.message}
           type={notification.type}
           onClose={hideNotification}
+          actionLabel={notification.actionLabel}
+          onAction={notification.onAction}
+          showProgress={notification.message?.toLowerCase().includes('marcado para exclusão')}
+          progressDuration={3000}
+          duration={notification.message?.toLowerCase().includes('marcado para exclusão') ? 3000 : 3000}
+          onTimeout={async () => {
+            // Executa a exclusão quando o toast some (sincronizado com a barra)
+            const ids = Object.keys(pendingDeletion);
+            if (ids.length === 0) return;
+            const idToDelete = ids[0];
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            try {
+              await axios.delete(`${apiUrl}/cativeiros/${idToDelete}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+              });
+              setPendingDeletion((prev) => {
+                const cp = { ...prev };
+                delete cp[idToDelete];
+                return cp;
+              });
+              await fetchCativeiros();
+              showNotification('Cativeiro excluído com sucesso!', 'success');
+            } catch (err) {
+              console.error('Erro ao deletar cativeiro:', err);
+              setPendingDeletion((prev) => {
+                const cp = { ...prev };
+                delete cp[idToDelete];
+                return cp;
+              });
+              showNotification('Erro ao excluir cativeiro. Ação desfeita.', 'error');
+            }
+          }}
         />
       )}
 

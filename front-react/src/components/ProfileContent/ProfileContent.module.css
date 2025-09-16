@@ -2,13 +2,14 @@
 
 .profileWrapper {
   min-height: 100vh;
-  height: 100vh;
+  height: auto;
+  overflow-y: auto;
   background: #fff;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 0 120px 0;
+  padding: 0 0 40px 0;
   position: relative;
   box-sizing: border-box;
 
