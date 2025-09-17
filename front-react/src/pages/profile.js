@@ -95,7 +95,7 @@ export default function Profile() {
       const userId = getCurrentUserId();
       const tourKey = userId ? `camarize_home_tour_done_${userId}` : 'camarize_home_tour_done';
       localStorage.removeItem(tourKey);
-      // Feedback ao usuário e redireciona para Home para iniciar o tour novamente
+      // Feedback ao usuário e redireciona para Home com flag para iniciar o tour novamente
       showNotification('Tutorial reativado. Abrindo tela inicial...', 'success');
       setTimeout(() => router.push('/home'), 600);
     } catch {

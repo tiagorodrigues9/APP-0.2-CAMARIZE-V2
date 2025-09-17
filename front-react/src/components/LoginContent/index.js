@@ -103,7 +103,7 @@ const LoginContent = () => {
         </div>
       </form>
       <div className={styles.logoWrapper}>
-        <Image src="/images/camarao.svg" alt="Logo" width={180} height={120} />
+        <Image src="/images/logo.svg" alt="Logo" width={180} height={120} />
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ const Footer = () => {
         </div>
       </div>
       <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-        <img src="/images/camarao.svg" alt="Logo" style={{ height: 40, width: 'auto' }} />
+        <img src="/images/logo.svg" alt="Logo" style={{ height: 40, width: 'auto' }} />
       </div>
     </footer>
   );

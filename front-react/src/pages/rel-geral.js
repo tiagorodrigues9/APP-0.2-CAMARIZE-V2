@@ -95,7 +95,7 @@ export default function RelatorioGeral() {
       </button>
       <div ref={relatorioRef}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
-          <img src="/images/logo_camarize1.png" alt="Camarize Logo" style={{ height: 48, marginBottom: 8 }} />
+          <img src="/images/logo.svg" alt="Camarize Logo" style={{ height: 48, marginBottom: 8 }} />
           <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, textAlign: 'center' }}>RELATÓRIO GERAL DOS TANQUES</h2>
         </div>
         <h3 style={{ textAlign: 'center', margin: '24px 0 8px 0' }}>Período: <span style={{color:'#1976d2',textTransform:'capitalize'}}>{periodo || '...'}</span></h3>

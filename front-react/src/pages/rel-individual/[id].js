@@ -42,7 +42,7 @@ export default function RelatorioIndividual() {
             // Verificar se os dados são válidos
             if (!imageData || (Array.isArray(imageData) && imageData.length === 0)) {
               console.error('Dados da imagem inválidos ou vazios');
-              setFotoUrl("/images/logo_camarize1.png");
+              setFotoUrl("/images/logo.svg");
               return;
             }
             
@@ -97,17 +97,17 @@ export default function RelatorioIndividual() {
               console.log('Imagem convertida com sucesso, tamanho:', binary.length, 'bytes');
             } else {
               console.error('Falha na conversão: binary está vazio');
-              setFotoUrl("/images/logo_camarize1.png");
+              setFotoUrl("/images/logo.svg");
             }
           } catch (error) {
             console.error('Erro ao processar imagem do cativeiro:', error);
             console.error('Error details:', error.message);
-            setFotoUrl("/images/logo_camarize1.png");
+            setFotoUrl("/images/logo.svg");
           }
         } else {
           console.log('Nenhuma imagem encontrada para o cativeiro, usando imagem padrão');
           console.log('foto_cativeiro:', res.data?.foto_cativeiro);
-          setFotoUrl("/images/logo_camarize1.png");
+          setFotoUrl("/images/logo.svg");
         }
       } catch (err) {
         setCativeiro(null);
@@ -337,7 +337,7 @@ export default function RelatorioIndividual() {
         </button>
       <div ref={relatorioRef}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
-          <img src="/images/logo_camarize1.png" alt="Camarize Logo" style={{ height: 48, marginBottom: 8 }} />
+          <img src="/images/logo.svg" alt="Camarize Logo" style={{ height: 48, marginBottom: 8 }} />
           <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, textAlign: 'center' }}>RELATÓRIO INDIVIDUAL DETALHADO</h2>
         </div>
         <h3 style={{ textAlign: 'center', margin: '24px 0 8px 0' }}>{cativeiro?.nome || `Tanque ${id}`}</h3>

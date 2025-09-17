@@ -142,7 +142,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className={styles.container}>
-        <img src="/images/logo_camarize1.png" alt="Logo" className={styles.logo} />
+      <img src="/images/logo.svg" alt="Logo" className={styles.logo} />
         <div style={{ 
           background: 'white', 
           borderRadius: '15px', 
@@ -201,7 +201,7 @@ export default function Dashboard() {
 
   return (
     <div className={styles.container}>
-      <img src="/images/logo_camarize1.png" alt="Logo" className={styles.logo} />
+      <img src="/images/logo.svg" alt="Logo" className={styles.logo} />
       <div className={styles.sensoresGrid}>
         {sensores.map((s, i) => (
           <div key={i} className={styles.sensorCard + (i === 0 ? ' ' + styles.selected : '')}>

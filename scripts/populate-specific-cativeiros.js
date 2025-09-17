@@ -1,16 +1,22 @@
 #!/usr/bin/env node
 
-import mongoose from "mongoose";
+import mongoose from "../api/node_modules/mongoose/index.js";
 import dotenv from "dotenv";
 import readline from 'readline';
-import Cativeiros from "../api/models/Cativeiros.js";
-import ParametrosAtuais from "../api/models/Parametros_atuais.js";
-import TiposCamarao from "../api/models/Camaroes.js";
+// Evitar usar Models do Mongoose aqui para não conflitar instâncias.
+// Vamos usar a conexão nativa (db.collection(...)) para buscar e inserir.
 
 // Carrega as variáveis de ambiente
 dotenv.config({ path: './api/.env' });
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://localhost:27017/camarize";
+const inferredDbFromUri = (() => {
+  try {
+    const tail = mongoUrl.split('/').pop() || '';
+    return (tail.split('?')[0] || '').trim() || undefined;
+  } catch { return undefined; }
+})();
+const dbName = process.env.MONGO_DB_NAME || inferredDbFromUri || 'camarize';
 
 // Interface de leitura do terminal
 const rl = readline.createInterface({
@@ -29,17 +35,33 @@ async function populateSpecificCativeiros() {
     
     // Configurar timeout maior para conexão
     mongoose.set('bufferCommands', false);
+    console.log(`🌐 Conectando em: ${mongoUrl} | dbName: ${dbName}`);
+    mongoose.connection.on('connected', () => console.log('🔌 mongoose connected'));
+    mongoose.connection.on('error', (e) => console.error('🔴 mongoose connection error:', e.message));
+    mongoose.connection.on('disconnected', () => console.log('🔌 mongoose disconnected'));
     await mongoose.connect(mongoUrl, {
       serverSelectionTimeoutMS: 30000, // 30 segundos
       socketTimeoutMS: 45000, // 45 segundos
+      dbName
     });
     console.log("✅ Conexão com MongoDB estabelecida!");
+    try {
+      const ping = await mongoose.connection.db.admin().command({ ping: 1 });
+      console.log(`🔗 Ping OK (${JSON.stringify(ping)}) | host: ${mongoose.connection.host} | db: ${mongoose.connection.name}`);
+    } catch (e) {
+      console.error('❌ Ping falhou (verifique MONGO_URL/IP no Atlas ou serviço local):', e.message);
+    }
     
     // Aguardar um pouco para garantir que a conexão está estável
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Buscar cativeiros existentes (sem populate para evitar erro)
-    const cativeiros = await Cativeiros.find().maxTimeMS(30000);
+    // Buscar cativeiros existentes (consulta leve e com timeout maior) - usando driver nativo
+    const t0 = Date.now();
+    const cativeiros = await mongoose.connection.db
+      .collection('cativeiros')
+      .find({}, { projection: { _id: 1, nome: 1, id_tipo_camarao: 1 } })
+      .toArray();
+    console.log(`⏱️ cativeiros.find levou ${Date.now() - t0}ms`);
     console.log(`📋 Encontrados ${cativeiros.length} cativeiros`);
     
     if (cativeiros.length === 0) {
@@ -47,8 +69,11 @@ async function populateSpecificCativeiros() {
       return;
     }
     
-    // Buscar tipos de camarão para mostrar informações
-    const tiposCamarao = await TiposCamarao.find();
+    // Buscar tipos de camarão para mostrar informações (coleção tiposcamaroes)
+    const tiposCamarao = await mongoose.connection.db
+      .collection('tiposcamaroes')
+      .find({})
+      .toArray();
     const tiposMap = {};
     tiposCamarao.forEach(tipo => {
       tiposMap[tipo._id.toString()] = tipo.nome;
@@ -106,24 +131,21 @@ async function populateSpecificCativeiros() {
     }
     
     // Criar registro
-    const novoParametro = new ParametrosAtuais({
-      datahora: new Date(),
-      temp_atual: temp,
-      ph_atual: phValue,
-      amonia_atual: amoniaValue,
-      id_cativeiro: cativeiroEscolhido._id
-    });
-    
-    await novoParametro.save();
-    
+    const insertRes = await mongoose.connection.db
+      .collection('parametros_atuais')
+      .insertOne({
+        datahora: new Date(),
+        temp_atual: temp,
+        ph_atual: phValue,
+        amonia_atual: amoniaValue,
+        id_cativeiro: cativeiroEscolhido._id
+      });
     console.log("\n✅ Parâmetro inserido com sucesso!");
-    console.log(`📊 ID do registro: ${novoParametro._id}`);
+    console.log(`📊 ID do registro: ${insertRes.insertedId}`);
     
     // Mostrar estatísticas
-    const totalParametros = await ParametrosAtuais.countDocuments();
-    const parametrosCativeiro = await ParametrosAtuais.countDocuments({ 
-      id_cativeiro: cativeiroEscolhido._id 
-    });
+    const totalParametros = await mongoose.connection.db.collection('parametros_atuais').countDocuments();
+    const parametrosCativeiro = await mongoose.connection.db.collection('parametros_atuais').countDocuments({ id_cativeiro: cativeiroEscolhido._id });
     
     console.log(`\n📈 Estatísticas:`);
     console.log(`   Total de parâmetros no banco: ${totalParametros}`);

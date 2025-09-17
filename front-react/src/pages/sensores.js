@@ -15,14 +15,15 @@ export default function SensoresPage() {
   const [error, setError] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [sensorToDelete, setSensorToDelete] = useState(null);
-  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success', actionLabel: null, onAction: null });
+  const [pendingDeletion, setPendingDeletion] = useState({});
   const [filtroAtivo, setFiltroAtivo] = useState('');
   const [showFiltroModal, setShowFiltroModal] = useState(false);
   const [ordenacaoAtiva, setOrdenacaoAtiva] = useState(false);
   const router = useRouter();
 
-  const showNotification = (message, type = 'success') => {
-    setNotification({ show: true, message, type });
+  const showNotification = (message, type = 'success', actionLabel = null, onAction = null) => {
+    setNotification({ show: true, message, type, actionLabel, onAction });
   };
 
   const hideNotification = () => {
@@ -164,31 +165,23 @@ export default function SensoresPage() {
 
   const confirmDelete = async () => {
     if (!sensorToDelete) return;
+    // Padrão "desfazer": agenda deleção, permite desfazer no toast, só executa após timeout
+    setShowDeleteModal(false);
+    const id = sensorToDelete;
+    setSensorToDelete(null);
 
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      await axios.delete(`${apiUrl}/sensores/${sensorToDelete}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+    const timeoutId = setTimeout(() => {}, 3000); // placeholder; o onTimeout do toast executa a deleção
+    setPendingDeletion(prev => ({ ...prev, [id]: { timeoutId } }));
+    showNotification('Sensor marcado para exclusão', 'warning', 'Desfazer', () => {
+      const pending = pendingDeletion[id] || { timeoutId };
+      clearTimeout(pending.timeoutId);
+      setPendingDeletion((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
       });
-      
-      // Recarregar a lista de sensores
-      const res = await axios.get(`${apiUrl}/sensores`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      setSensores(res.data);
-      setSensoresFiltrados(res.data); // Atualizar filtrados após exclusão
-      
-      setShowDeleteModal(false);
-      setSensorToDelete(null);
-      showNotification('Sensor excluído com sucesso!', 'success');
-    } catch (err) {
-      console.error('Erro ao deletar sensor:', err);
-      const apiMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Erro ao excluir sensor';
-      showNotification(apiMsg, 'error');
-      setShowDeleteModal(false);
-      setSensorToDelete(null);
-    }
+      showNotification('Exclusão desfeita.', 'success');
+    });
   };
 
   // Se há erro, mostrar tela de erro
@@ -303,7 +296,7 @@ export default function SensoresPage() {
         </div>
       </div>
       <div style={{ width: '100%', display: 'flex', justifyContent: 'center', margin: '32px 0 16px 0' }}>
-        <img src="/images/logo_camarize1.png" alt="Camarize Logo" style={{ width: 180, height: 40 }} />
+        <img src="/images/logo.svg" alt="Camarize Logo" style={{ width: 180, height: 40 }} />
       </div>
       
       {/* Modal de confirmação de exclusão */}
@@ -442,6 +435,43 @@ export default function SensoresPage() {
           message={notification.message}
           type={notification.type}
           onClose={hideNotification}
+          actionLabel={notification.actionLabel}
+          onAction={notification.onAction}
+          showProgress={notification.message?.toLowerCase().includes('marcado para exclusão')}
+          progressDuration={3000}
+          duration={notification.message?.toLowerCase().includes('marcado para exclusão') ? 3000 : 3000}
+          onTimeout={async () => {
+            const ids = Object.keys(pendingDeletion);
+            if (ids.length === 0) return;
+            const idToDelete = ids[0];
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            try {
+              await axios.delete(`${apiUrl}/sensores/${idToDelete}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+              });
+              setPendingDeletion((prev) => {
+                const copy = { ...prev };
+                delete copy[idToDelete];
+                return copy;
+              });
+              const res = await axios.get(`${apiUrl}/sensores`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+              });
+              setSensores(res.data);
+              setSensoresFiltrados(res.data);
+              showNotification('Sensor excluído com sucesso!', 'success');
+            } catch (err) {
+              console.error('Erro ao deletar sensor:', err);
+              setPendingDeletion((prev) => {
+                const copy = { ...prev };
+                delete copy[idToDelete];
+                return copy;
+              });
+              const apiMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Erro ao excluir sensor';
+              showNotification(apiMsg, 'error');
+            }
+          }}
         />
       )}
 

@@ -19,6 +19,13 @@
   z-index: 2;
 }
 
+/* Torna a logo responsiva dentro do container */
+.logoBox img {
+  width: 80vw;
+  max-width: 360px;
+  height: auto;
+}
+
 .waveBg {
   position: absolute;
   left: 0;

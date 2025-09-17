@@ -147,6 +147,7 @@ export default function StatusCativeirosPage() {
   const criticoCativeiros = getCativeirosByStatus('critico');
   const alertaCativeiros = getCativeirosByStatus('alerta');
   const okCativeiros = getCativeirosByStatus('ok');
+  const hasAnyAtualizacao = cativeirosStatus.some(c => !!c.ultimaAtualizacao);
 
   if (loading) {
     return <Loading message="Carregando status dos cativeiros..." />;
@@ -208,6 +209,22 @@ export default function StatusCativeirosPage() {
             <span className={styles.summaryLabel}>OK</span>
           </div>
         </div>
+
+        {/* Aviso quando não há parâmetros atuais em nenhum cativeiro (abaixo dos quadrantes) */}
+        {!hasAnyAtualizacao && cativeirosStatus.length > 0 && (
+          <div className={styles.emptyState} style={{ margin: '12px 0 0 0' }}>
+            <div className={styles.emptyIcon}>📭</div>
+            <h2>Sem parâmetros atuais</h2>
+            <p>Ainda não recebemos leituras para os cativeiros. Assim que houver dados, o status será exibido aqui.</p>
+            <button 
+              className={styles.retryButton}
+              onClick={fetchCativeirosStatus}
+              style={{ marginTop: 12 }}
+            >
+              Atualizar agora
+            </button>
+          </div>
+        )}
 
         {/* Cativeiros Críticos */}
         {criticoCativeiros.length > 0 && (

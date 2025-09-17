@@ -13,7 +13,13 @@ export default function StartScreen() {
       </Head>
       <main className={styles.startMain}>
         <div className={styles.logoBox}>
-          <Image src="/images/camarao.svg" alt="Logo" width={180} height={120} />
+          <Image 
+            src="/images/logo.svg" 
+            alt="Logo" 
+            width={360} 
+            height={120} 
+            sizes="(max-width: 600px) 80vw, 360px"
+          />
         </div>
         <div className={styles.waveBg}></div>
         <button className={styles.startButton} onClick={() => router.push("/login")}>Conecte-se</button>

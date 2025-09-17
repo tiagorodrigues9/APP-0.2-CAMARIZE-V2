@@ -471,7 +471,7 @@ export default function EditCativeiroPage() {
         </button>
       </form>
       <div className={styles.logoBox}>
-        <img src="/images/logo_camarize1.png" alt="Camarize Logo" />
+        <img src="/images/logo.svg" alt="Camarize Logo" />
       </div>
       <Notification
         isVisible={notification.show}

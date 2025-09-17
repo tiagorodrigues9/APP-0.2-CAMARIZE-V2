@@ -134,10 +134,10 @@ export default function HomeContent() {
     router.push(`/rel-geral?periodo=${periodo}`);
   };
 
-  // Mostrar tour apenas na primeira vez
+  // Mostrar tour apenas na primeira vez (comportamento original)
   useEffect(() => {
     try {
-      // Usa um identificador por usuário para o tour
+      if (loading) return;
       const getCurrentUserId = () => {
         try {
           const raw = localStorage.getItem('usuarioCamarize');
@@ -148,17 +148,15 @@ export default function HomeContent() {
           return null;
         }
       };
-
       const userId = getCurrentUserId();
       const tourKey = userId ? `camarize_home_tour_done_${userId}` : 'camarize_home_tour_done';
       const done = localStorage.getItem(tourKey);
       if (!done) {
-        // pequeno delay para garantir refs montadas
         const t = setTimeout(() => setShowTour(true), 250);
         return () => clearTimeout(t);
       }
     } catch {}
-  }, []);
+  }, [loading]);
 
   // Se há erro, mostrar tela de erro
   if (error) {
@@ -359,7 +357,7 @@ export default function HomeContent() {
         width: '100%',
         margin: '0 auto'
       }}>
-        <img src="/images/logo_camarize1.png" alt="Logo" style={{ height: 24 }} />
+        <img src="/images/logo.svg" alt="Logo" style={{ height: 24 }} />
       </div>
       
       <NavBottom 
@@ -401,8 +399,15 @@ export default function HomeContent() {
                 } catch {}
               }
               localStorage.setItem(tourKey, '1');
+              try { sessionStorage.removeItem('camarize_home_tour_forced'); } catch {}
             } catch {}
             setShowTour(false);
+            try {
+              if (router?.query?.tour) {
+                const { tour, ...rest } = router.query || {};
+                router.replace({ pathname: router.pathname, query: { ...rest } }, undefined, { shallow: true });
+              }
+            } catch {}
           }}
         />
       )}
