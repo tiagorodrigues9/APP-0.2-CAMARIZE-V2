@@ -103,7 +103,7 @@ const LoginContent = () => {
         </div>
       </form>
       <div className={styles.logoWrapper}>
-        <Image src="/images/logo_camarize1.png" alt="Camarize Logo" width={180} height={40} />
+        <Image src="/images/camarao.svg" alt="Logo" width={180} height={120} />
       </div>
     </div>
   );

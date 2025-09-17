@@ -8,12 +8,12 @@ export default function Document() {
         <link rel="manifest" href="/manifest.json" />
         
         {/* PWA Icons */}
-        <link rel="icon" type="image/png" href="/images/favicon-camarize.png" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/images/logo_camarize1.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/images/logo_camarize2.png" />
+        <link rel="icon" type="image/svg+xml" href="/images/camarao.svg" />
+        <link rel="icon" type="image/svg+xml" sizes="192x192" href="/images/camarao.svg" />
+        <link rel="icon" type="image/svg+xml" sizes="512x512" href="/images/camarao.svg" />
         
         {/* Apple Touch Icons */}
-        <link rel="apple-touch-icon" href="/images/logo_camarize2.png" />
+        <link rel="apple-touch-icon" href="/images/camarao.svg" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Camarize" />

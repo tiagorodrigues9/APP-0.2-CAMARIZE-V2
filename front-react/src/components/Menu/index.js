@@ -27,7 +27,7 @@ const Menu = () => {
     <nav className={styles.navbar}>
       <div className={styles.logo}>
         <Link href="/home">
-          <img src="/images/logo_camarize1.png" alt="Camarize" />
+          <img src="/images/camarao.svg" alt="Logo" style={{ height: 28, width: 'auto' }} />
         </Link>
       </div>
       <div className={styles.menu}>
