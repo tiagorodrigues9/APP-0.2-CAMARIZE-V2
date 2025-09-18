@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import Notification from '../components/Notification';
+import RequestButton from '../components/RequestButton';
 import NavBottom from '../components/NavBottom';
 
 const TIPOS_SENSORES = [
@@ -44,7 +45,7 @@ export default function CreateSensoresPage() {
     formData.append('apelido', apelido);
     if (arquivo) formData.append('foto_sensor', arquivo);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       await axios.post(`${apiUrl}/sensores`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -124,8 +125,12 @@ export default function CreateSensoresPage() {
           <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={e => setArquivo(e.target.files[0])} />
           <span style={{ color: '#888', fontSize: '0.98rem' }}>{arquivo ? arquivo.name : 'Nenhum arquivo inserido'}</span>
         </div>
-        <button
-          type="submit"
+        <RequestButton
+          labelWhenAllowed="Cadastrar"
+          labelWhenRequest="Solicitar"
+          action="cadastrar_sensor"
+          buildPayload={() => ({ tipo: tipoSelecionado, apelido })}
+          onSuccess={handleSubmit}
           disabled={loading}
           style={{
             width: '100%',
@@ -141,9 +146,7 @@ export default function CreateSensoresPage() {
             cursor: loading ? 'not-allowed' : 'pointer',
             transition: 'opacity 0.2s'
           }}
-        >
-          Cadastrar
-        </button>
+        />
       </form>
       <Notification
         isVisible={notification.show}

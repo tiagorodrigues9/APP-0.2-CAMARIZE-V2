@@ -3,7 +3,26 @@ import Cativeiros from "../models/Cativeiros.js";
 class cativeiroService {
   async getAll() {
     try {
-      return await Cativeiros.find()
+      const cativeiros = await Cativeiros.find()
+        .populate('id_tipo_camarao')
+        .populate('condicoes_ideais');
+      
+      // Anexar dados da fazenda a cada cativeiro
+      const FazendasxCativeiros = (await import('../models/FazendasxCativeiros.js')).default;
+      const rels = await FazendasxCativeiros.find({}, 'cativeiro fazenda').populate('fazenda');
+      
+      const cativeirosComFazenda = cativeiros.map(cativeiro => {
+        const cativeiroObj = cativeiro.toObject();
+        const relacao = rels.find(r => r.cativeiro.toString() === cativeiro._id.toString());
+        if (relacao && relacao.fazenda) {
+          cativeiroObj.fazenda = relacao.fazenda._id;
+          cativeiroObj.fazendaNome = relacao.fazenda.nome;
+          cativeiroObj.fazendaCodigo = relacao.fazenda.codigo;
+        }
+        return cativeiroObj;
+      });
+      
+      return cativeirosComFazenda;
     } catch (error) {
       console.log(error);
       return [];
@@ -116,12 +135,26 @@ class cativeiroService {
       const fazendasDoUsuario = await UsuariosxFazendas.find({ usuario: usuarioId }).populate('fazenda');
       const fazendaIds = fazendasDoUsuario.map(f => f.fazenda._id || f.fazenda);
       // Buscar cativeiros dessas fazendas
-      const rels = await FazendasxCativeiros.find({ fazenda: { $in: fazendaIds } }, 'cativeiro');
+      const rels = await FazendasxCativeiros.find({ fazenda: { $in: fazendaIds } }, 'cativeiro fazenda').populate('fazenda');
       const cativeiroIds = rels.map(r => r.cativeiro);
       // Buscar dados completos dos cativeiros, populando tipo de camarão e condições ideais
-      return await Cativeiros.find({ _id: { $in: cativeiroIds } })
+      const cativeiros = await Cativeiros.find({ _id: { $in: cativeiroIds } })
         .populate('id_tipo_camarao')
         .populate('condicoes_ideais');
+      
+      // Anexar dados da fazenda a cada cativeiro
+      const cativeirosComFazenda = cativeiros.map(cativeiro => {
+        const cativeiroObj = cativeiro.toObject();
+        const relacao = rels.find(r => r.cativeiro.toString() === cativeiro._id.toString());
+        if (relacao && relacao.fazenda) {
+          cativeiroObj.fazenda = relacao.fazenda._id;
+          cativeiroObj.fazendaNome = relacao.fazenda.nome;
+          cativeiroObj.fazendaCodigo = relacao.fazenda.codigo;
+        }
+        return cativeiroObj;
+      });
+      
+      return cativeirosComFazenda;
     } catch (error) {
       console.log(error);
       return [];

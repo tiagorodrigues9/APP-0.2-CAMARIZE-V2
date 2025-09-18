@@ -20,4 +20,10 @@ userRoutes.get('/:id', userController.getUserById);
 // Endpoint para atualizar foto do usuário
 userRoutes.patch('/:id/photo', userController.updateUserPhoto);
 
+// Listar usuários (somente master)
+userRoutes.get('/', Auth.Authorization, Auth.RequireRole(['master']), userController.listUsers);
+
+// Alterar role do usuário (somente master)
+userRoutes.patch('/:id/role', Auth.Authorization, Auth.RequireRole(['master']), userController.changeUserRole);
+
 export default userRoutes;

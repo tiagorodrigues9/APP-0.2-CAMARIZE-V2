@@ -106,6 +106,11 @@ app.use('/notifications', notificationRoutes);
 app.use('/email', emailRoutes);
 app.use('/test', testRoutes);
 app.use('/parametros', parametrosRoutes);
+import requestRoutes from './routes/requestRoutes.js';
+import { BlockMembersWrite } from './middleware/Auth.js';
+// Bloqueio global de escrita para membros (exceto /requests)
+app.use(BlockMembersWrite);
+app.use('/requests', requestRoutes);
 // ✅ Conecta ao MongoDB Atlas
 const mongoUrl = process.env.MONGO_URL || "mongodb://localhost:27017/camarize";
 

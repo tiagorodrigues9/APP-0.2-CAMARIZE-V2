@@ -16,7 +16,7 @@ export default function StatusCativeirosPage() {
       setLoading(true);
       setError(null);
       
-      const token = localStorage.getItem('token');
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       if (!token) {
         router.push('/login');
         return;

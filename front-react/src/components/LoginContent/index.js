@@ -21,18 +21,27 @@ const LoginContent = () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
       const response = await axios.post(`${apiUrl}/users/auth`, { email, senha });
-      localStorage.setItem("token", response.data.token);
+      // Salvar sessão por aba, evitando conflito entre múltiplas janelas
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem("token", response.data.token);
+        localStorage.setItem("token", response.data.token);
+      }
 
-      // Decodificar o token para obter o id do usuário
-      const decoded = jwtDecode(response.data.token);
-      const userId = decoded.id;
+      // Buscar o usuário autenticado com o token (inclui role)
+      const meRes = await axios.get(`${apiUrl}/users/me`, {
+        headers: { Authorization: `Bearer ${response.data.token}` }
+      });
+      const usuario = meRes.data;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem("usuarioCamarize", JSON.stringify(usuario));
+        localStorage.setItem("usuarioCamarize", JSON.stringify(usuario));
+      }
 
-      // Buscar o usuário pelo id
-      const userRes = await axios.get(`${apiUrl}/users/${userId}`);
-      const usuario = userRes.data;
-      localStorage.setItem("usuarioCamarize", JSON.stringify(usuario));
-
-      router.push("/home");
+      // Redireciona conforme a role
+      const role = (usuario && usuario.role) || 'membro';
+      if (role === 'master') router.push('/master');
+      else if (role === 'admin') router.push('/admin');
+      else router.push('/home');
     } catch {
       setError("Usuário ou senha inválidos!");
     }

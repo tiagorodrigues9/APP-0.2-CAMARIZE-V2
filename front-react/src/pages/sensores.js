@@ -7,6 +7,7 @@ import AuthError from '../components/AuthError';
 import Loading from '../components/Loading';
 import NavBottom from '../components/NavBottom';
 import styles from './sensores.module.css';
+import RequestButton from '../components/RequestButton';
 
 export default function SensoresPage() {
   const [sensores, setSensores] = useState([]);
@@ -21,6 +22,8 @@ export default function SensoresPage() {
   const [showFiltroModal, setShowFiltroModal] = useState(false);
   const [ordenacaoAtiva, setOrdenacaoAtiva] = useState(false);
   const router = useRouter();
+  const usuarioRaw = typeof window !== 'undefined' ? (sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize')) : null;
+  const role = usuarioRaw ? (JSON.parse(usuarioRaw)?.role || 'membro') : 'membro';
 
   const showNotification = (message, type = 'success', actionLabel = null, onAction = null) => {
     setNotification({ show: true, message, type, actionLabel, onAction });
@@ -276,13 +279,15 @@ export default function SensoresPage() {
               </svg>
               {filtroAtivo && <div className={styles.filterIndicator} />}
             </button>
-            <button 
-              className={styles.headerButton}
-              title="Cadastrar Sensor" 
-              onClick={() => router.push('/create-sensores')}
-            >
-              <svg width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#222" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#222" strokeWidth="2"/></svg>
-            </button>
+            {role !== 'membro' && (
+              <button 
+                className={styles.headerButton}
+                title="Cadastrar Sensor" 
+                onClick={() => router.push('/create-sensores')}
+              >
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#222" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#222" strokeWidth="2"/></svg>
+              </button>
+            )}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>

@@ -23,7 +23,7 @@ export function useAuth() {
       setLoading(true);
       setError(null);
       
-      const token = localStorage.getItem('token');
+      const token = (typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null);
       if (!token) {
         setIsAuthenticated(false);
         setError('Você precisa estar logado para acessar esta página');
@@ -38,12 +38,15 @@ export function useAuth() {
       
       setIsAuthenticated(true);
       setUser(response.data);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('usuarioCamarize', JSON.stringify(response.data));
+      }
     } catch (err) {
       console.error('Erro de autenticação:', err);
       
       if (err.response?.status === 401) {
         setError('Sessão expirada. Faça login novamente para continuar.');
-        clearAuthData();
+        // Não limpar imediatamente o storage para evitar loop de redirecionamento
       } else {
         setError('Erro ao verificar autenticação. Tente novamente.');
       }

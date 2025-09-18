@@ -2,9 +2,22 @@ import Head from "next/head";
 import styles from "@/styles/StartScreen.module.css";
 import Image from "next/image";
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 
 export default function StartScreen() {
   const router = useRouter();
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('usuarioCamarize');
+      const user = raw ? JSON.parse(raw) : null;
+      const role = user?.role || 'membro';
+      if (role === 'master') router.replace('/master');
+      else if (role === 'admin') router.replace('/admin');
+      else {
+        // mantém a tela inicial com botão conectar
+      }
+    } catch {}
+  }, []);
   return (
     <>
       <Head>

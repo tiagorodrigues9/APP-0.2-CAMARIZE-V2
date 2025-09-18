@@ -6,6 +6,7 @@ import SelectTipoCamarao from "@/components/SelectTipoCamarao";
 import Notification from "@/components/Notification";
 import AuthError from "@/components/AuthError";
 import Loading from "@/components/Loading";
+import RequestButton from "@/components/RequestButton";
 
 export default function CreateContent() {
   const router = useRouter();
@@ -333,9 +334,24 @@ export default function CreateContent() {
             + Adicionar Sensor
           </button>
         )}
-        <button type="submit" className={styles.cadastrarBtn} aria-label="Cadastrar cativeiro">
-          Cadastrar
-        </button>
+        <RequestButton
+          className={styles.cadastrarBtn}
+          aria-label="Cadastrar cativeiro"
+          labelWhenAllowed="Cadastrar"
+          labelWhenRequest="Solicitar"
+          action="cadastrar_cativeiro"
+          buildPayload={() => ({
+            fazendaId: fazendaSelecionada,
+            nome: nomeCativeiro,
+            tipoCamarao: tipoCamarao?.value || '',
+            data_instalacao: dataInstalacao,
+            temp_media_diaria: tempMedia,
+            ph_medio_diario: phMedio,
+            amonia_media_diaria: amoniaMedia,
+            sensores: sensores.filter(s => s),
+          })}
+          onSuccess={handleSubmit}
+        />
       </form>
       <div className={styles.logoBox}>
         <img src="/images/logo_camarize1.png" alt="Camarize Logo" />

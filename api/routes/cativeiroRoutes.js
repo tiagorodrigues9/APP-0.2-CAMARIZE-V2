@@ -17,6 +17,8 @@ cativeiroRoutes.get("/tipos-camarao", cativeiroController.getAllTiposCamarao);
 cativeiroRoutes.get("/condicoes-ideais", cativeiroController.getAllCondicoesIdeais);
 // Endpoint para atualizar cativeiro
 cativeiroRoutes.put("/cativeiros/:id", Auth.Authorization, upload.single('foto_cativeiro'), cativeiroController.updateCativeiro);
+// Endpoint para atualizar cativeiro (PATCH para atualizações parciais)
+cativeiroRoutes.patch("/cativeiros/:id", Auth.Authorization, cativeiroController.updateCativeiro);
 // Endpoint para deletar cativeiro
 cativeiroRoutes.delete("/cativeiros/:id", Auth.Authorization, cativeiroController.deleteCativeiro);
 

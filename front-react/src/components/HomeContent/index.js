@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
 import styles from "./HomeContent.module.css";
 import NavBottom from "../NavBottom";
+import RequestButton from "../RequestButton";
 import AuthError from "../AuthError";
 import Loading from "../Loading";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +12,7 @@ import GuidedTour from "../GuidedTour";
 
 export default function HomeContent() {
   const router = useRouter();
+  const [role, setRole] = useState('membro');
   const [cativeiros, setCativeiros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,7 +51,7 @@ export default function HomeContent() {
       setLoading(true);
       setError(null);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = typeof window !== "undefined" ? (sessionStorage.getItem('token') || localStorage.getItem("token")) : null;
       if (!token) {
         setError('Você precisa estar logado para acessar esta página');
         setLoading(false);
@@ -74,6 +76,15 @@ export default function HomeContent() {
 
   useEffect(() => {
     fetchCativeiros();
+  }, []);
+
+  // Carregar role do usuário (para gating de botões)
+  useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('usuarioCamarize') : null;
+      const user = raw ? JSON.parse(raw) : null;
+      if (user?.role) setRole(user.role);
+    } catch {}
   }, []);
 
   const handleCativeiroClick = (id) => {
@@ -235,14 +246,16 @@ export default function HomeContent() {
                 <rect x="17.78" y="4.22" width="2" height="3" rx="1" transform="rotate(45 17.78 4.22)" fill="#000"/>
               </svg>
             </button>
-            <button
-              className={styles.iconBtn}
-              aria-label="Cadastrar Cativeiro"
-              onClick={() => router.push('/create-cativeiros')}
-              ref={addRef}
-            >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#222" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#222" strokeWidth="2"/></svg>
-            </button>
+            {role !== 'membro' && (
+              <button
+                className={styles.iconBtn}
+                aria-label="Cadastrar Cativeiro"
+                onClick={() => router.push('/create-cativeiros')}
+                ref={addRef}
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#222" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#222" strokeWidth="2"/></svg>
+              </button>
+            )}
             <button className={styles.iconBtn} aria-label="Download" onClick={handleDownloadClick} ref={downloadRef}>
               <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 4v12m0 0l-4-4m4 4l4-4" stroke="#222" strokeWidth="2"/><rect x="4" y="18" width="16" height="2" rx="1" fill="#222"/></svg>
             </button>
@@ -268,9 +281,11 @@ export default function HomeContent() {
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Comece por aqui</div>
               <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 12 }}>Crie seu primeiro cativeiro e conecte sensores para ver dados no dashboard.</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={() => router.push('/create-cativeiros')} style={{
-                  background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontWeight: 600
-                }}>+ Cadastrar cativeiro</button>
+                {role !== 'membro' && (
+                  <button onClick={() => router.push('/create-cativeiros')} style={{
+                    background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontWeight: 600
+                  }}>+ Cadastrar cativeiro</button>
+                )}
                 <button onClick={() => router.push('/sensores')} style={{
                   background: '#111827', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontWeight: 600
                 }}>🔧 Gerenciar sensores</button>
@@ -328,15 +343,17 @@ export default function HomeContent() {
                       <path d="M15.232 5.232a3 3 0 1 1 4.243 4.243L7.5 21H3v-4.5l12.232-12.268Z" stroke="#7ecbff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </button>
-                  <button 
-                    className={styles.actionBtn} 
-                    onClick={(e) => handleDeleteCativeiro(e, cativeiro._id)}
-                    title="Excluir"
-                  >
-                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                      <path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="#ff6b6b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
+                  {role !== 'membro' && (
+                    <button 
+                      className={styles.actionBtn} 
+                      onClick={(e) => handleDeleteCativeiro(e, cativeiro._id)}
+                      title="Excluir"
+                    >
+                      <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
+                        <path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="#ff6b6b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -674,7 +691,7 @@ export default function HomeContent() {
             if (ids.length === 0) return;
             const idToDelete = ids[0];
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const token = typeof window !== "undefined" ? (sessionStorage.getItem('token') || localStorage.getItem("token")) : null;
             try {
               await axios.delete(`${apiUrl}/cativeiros/${idToDelete}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}

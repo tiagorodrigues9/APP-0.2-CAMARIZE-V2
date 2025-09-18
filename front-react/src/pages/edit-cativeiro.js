@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/router";
 import styles from "@/components/CreateContent/CreateContent.module.css";
 import axios from "axios";
+import RequestButton from "@/components/RequestButton";
 import SelectTipoCamarao from "@/components/SelectTipoCamarao";
 import Notification from "@/components/Notification";
 
@@ -120,7 +121,7 @@ export default function EditCativeiroPage() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
       console.log('Buscando cativeiro com ID:', id);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       const res = await axios.get(`${apiUrl}/cativeiros/${id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -267,7 +268,7 @@ export default function EditCativeiroPage() {
     }
     
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = typeof window !== "undefined" ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       await axios.put(`${apiUrl}/cativeiros/${id}`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -449,9 +450,12 @@ export default function EditCativeiroPage() {
           </div>
         ))}
         {sensores.length < 3 && (
-          <button
-            type="button"
-            onClick={adicionarCampoSensor}
+          <RequestButton
+            labelWhenAllowed="+ Adicionar Sensor"
+            labelWhenRequest="Solicitar adicionar sensor"
+            action="editar_cativeiro_add_sensor"
+            payload={{ cativeiroId: id }}
+            onSuccess={adicionarCampoSensor}
             style={{
               background: '#4CAF50',
               color: 'white',
@@ -462,13 +466,17 @@ export default function EditCativeiroPage() {
               fontSize: '14px',
               marginTop: '8px'
             }}
-          >
-            + Adicionar Sensor
-          </button>
+          />
         )}
-        <button type="submit" className={styles.cadastrarBtn}>
-          Atualizar
-        </button>
+        <RequestButton
+          type="submit"
+          className={styles.cadastrarBtn}
+          labelWhenAllowed="Atualizar"
+          labelWhenRequest="Solicitar atualização"
+          action="editar_cativeiro"
+          buildPayload={() => ({ cativeiroId: id, nome: nomeCativeiro })}
+          onSuccess={handleSubmit}
+        />
       </form>
       <div className={styles.logoBox}>
         <img src="/images/logo.svg" alt="Camarize Logo" />

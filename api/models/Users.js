@@ -23,6 +23,12 @@ const userSchema = new mongoose.Schema({
     ref: 'Fazendas',
     required: false
   },
+  role: {
+    type: String,
+    enum: ['membro', 'admin', 'master'],
+    default: 'membro',
+    required: true
+  }
 });
 
 const User = mongoose.model("User", userSchema);

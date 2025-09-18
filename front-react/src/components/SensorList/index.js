@@ -1,4 +1,5 @@
 import styles from './SensorList.module.css';
+import RequestButton from '../RequestButton';
 
 function arrayBufferToBase64(buffer) {
   let binary = '';
@@ -44,25 +45,33 @@ export default function SensorList({ sensores = [], onEdit, onDelete, useOrigina
                 </div>
               </div>
               <div className={styles.actions}>
-                <button 
+                <RequestButton 
                   className={`${styles.actionBtn} ${styles.edit}`} 
+                  labelWhenAllowed=""
+                  labelWhenRequest=""
+                  action="editar_sensor"
+                  payload={{ sensorId: sensor._id }}
+                  onSuccess={() => onEdit && onEdit(sensor._id)}
                   title="Editar sensor"
-                  onClick={() => onEdit && onEdit(sensor._id)}
                 >
                   <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                </button>
-                <button 
+                </RequestButton>
+                <RequestButton 
                   className={`${styles.actionBtn} ${styles.delete}`} 
+                  labelWhenAllowed=""
+                  labelWhenRequest=""
+                  action="excluir_sensor"
+                  payload={{ sensorId: sensor._id }}
+                  onSuccess={() => onDelete && onDelete(sensor._id)}
                   title="Excluir sensor"
-                  onClick={() => onDelete && onDelete(sensor._id)}
                 >
                   <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
                     <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                </button>
+                </RequestButton>
               </div>
             </div>
           );

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import RequestButton from '../components/RequestButton';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import Notification from '../components/Notification';
@@ -39,7 +40,7 @@ export default function EditSensorPage() {
   const fetchSensor = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       const res = await axios.get(`${apiUrl}/sensores/${id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -91,7 +92,7 @@ export default function EditSensorPage() {
     if (arquivo) formData.append('foto_sensor', arquivo);
     
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = typeof window !== "undefined" ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       await axios.put(`${apiUrl}/sensores/${id}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -195,8 +196,12 @@ export default function EditSensorPage() {
             </div>
           )}
         </div>
-        <button
-          type="submit"
+        <RequestButton
+          labelWhenAllowed="Atualizar"
+          labelWhenRequest="Solicitar"
+          action="editar_sensor"
+          buildPayload={() => ({ id, tipo: tipoSelecionado, apelido })}
+          onSuccess={handleSubmit}
           disabled={loading}
           style={{
             width: '100%',
@@ -212,9 +217,7 @@ export default function EditSensorPage() {
             cursor: loading ? 'not-allowed' : 'pointer',
             transition: 'opacity 0.2s'
           }}
-        >
-          Atualizar
-        </button>
+        />
       </form>
       <Notification
         isVisible={notification.show}

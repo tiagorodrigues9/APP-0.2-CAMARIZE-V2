@@ -49,8 +49,8 @@ const getCurrentUser = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     console.log("Dados recebidos para cadastro:", req.body); // Log dos dados recebidos
-    const { nome, email, senha, foto_perfil, fazenda } = req.body;
-    const user = await userService.Create(nome, email, senha, foto_perfil, fazenda);
+    const { nome, email, senha, foto_perfil, fazenda, role } = req.body;
+    const user = await userService.Create(nome, email, senha, foto_perfil, fazenda, role);
     res.sendStatus(201); // Cod. 201 (CREATED)
   } catch (error) {
     console.log("Erro ao salvar usuário:", error); // Log do erro
@@ -81,7 +81,7 @@ const register = async (req, res) => {
     }
     
     console.log("📝 [REGISTER] Criando usuário...");
-    const user = await userService.Create(nome, email, senha, foto_perfil, fazendaDoc ? fazendaDoc._id : undefined);
+    const user = await userService.Create(nome, email, senha, foto_perfil, fazendaDoc ? fazendaDoc._id : undefined, 'membro');
     console.log("✅ [REGISTER] Usuário criado:", user._id);
     
     res.status(201).json(user);
@@ -155,4 +155,39 @@ const updateUserPhoto = async (req, res) => {
   }
 };
 
-export default { createUser, loginUser, JWTSecret, register, getUserById, updateUserPhoto, getCurrentUser };
+// Listar usuários (opcional: por role) - apenas master
+const listUsers = async (req, res) => {
+  try {
+    const { role } = req.query;
+    const filter = role ? { role } : {};
+    const users = await userService.listUsers(filter);
+    res.json(users.map(u => ({
+      id: u._id,
+      nome: u.nome,
+      email: u.email,
+      role: u.role,
+      fazenda: u.fazenda,
+      foto_perfil: u.foto_perfil,
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Atualizar role - apenas master
+const changeUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+    if (!['membro', 'admin', 'master'].includes(role)) {
+      return res.status(400).json({ error: 'Role inválida' });
+    }
+    const updated = await userService.updateRole(id, role);
+    if (!updated) return res.status(404).json({ error: 'Usuário não encontrado' });
+    res.json({ id: updated._id, role: updated.role });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export default { createUser, loginUser, JWTSecret, register, getUserById, updateUserPhoto, getCurrentUser, listUsers, changeUserRole };

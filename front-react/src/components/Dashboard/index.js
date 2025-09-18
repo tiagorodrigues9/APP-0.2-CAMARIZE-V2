@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import ErrorDisplay from "../ErrorDisplay";
 import Modal from '../Modal';
+import RequestButton from '../RequestButton';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       
-      const token = localStorage.getItem('token');
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       if (!token) {
         setError('Token não encontrado. Faça login novamente.');
         return;
@@ -237,9 +238,14 @@ export default function Dashboard() {
           <span style={{ color: "#7be6c3" }}>■ Amônia</span>
         </div>
       </div>
-      <button className={styles.relatorioBtn} onClick={handleRelatorioClick}>
-        Relatório Individual Detalhado
-      </button>
+      <RequestButton 
+        className={styles.relatorioBtn}
+        labelWhenAllowed="Relatório Individual Detalhado"
+        labelWhenRequest="Solicitar Relatório"
+        action="relatorio_individual"
+        payload={{ cativeiroId: id, periodo: selectedPeriodo || 'semana' }}
+        onSuccess={() => handleRelatorioClick()}
+      />
       <nav className={styles.navBottom}>
         <button onClick={() => router.push('/home')}><img src="/images/home.svg" alt="Home" /></button>
         <button onClick={() => router.push('/settings')}><img src="/images/settings.svg" alt="Settings" /></button>

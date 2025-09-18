@@ -4,7 +4,7 @@ import EmailSettings from "../models/EmailSettings.js";
 class userService {
   
   // Método para cadastrar um usuário
-  async Create(nome, email, senha, foto_perfil, fazenda) {
+  async Create(nome, email, senha, foto_perfil, fazenda, role = 'membro') {
     try {
       console.log("📝 [SERVICE] Criando usuário:", { nome, email, senha: "***", foto_perfil, fazenda });
       
@@ -14,6 +14,7 @@ class userService {
         senha,
         foto_perfil,
         fazenda,
+        role,
       });
       
       console.log("💾 [SERVICE] Salvando usuário no banco...");
@@ -95,6 +96,16 @@ class userService {
     } catch (error) {
       throw error;
     }
+  }
+
+  // Listar usuários com filtro opcional por role
+  async listUsers(filter = {}) {
+    return await User.find(filter);
+  }
+
+  // Atualizar role do usuário
+  async updateRole(id, role) {
+    return await User.findByIdAndUpdate(id, { role }, { new: true });
   }
 }
 

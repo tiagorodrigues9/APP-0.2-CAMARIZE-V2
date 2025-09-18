@@ -49,7 +49,7 @@ export default function EmailSettings() {
   useEffect(() => {
     const fetchEmailSettings = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
         const response = await axios.get(`${apiUrl}/email/settings`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -72,7 +72,7 @@ export default function EmailSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       const response = await axios.put(`${apiUrl}/email/settings`, emailSettings, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -101,7 +101,7 @@ export default function EmailSettings() {
   // Enviar email de teste
   const handleTestEmail = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
       const response = await axios.post(`${apiUrl}/email/test`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
