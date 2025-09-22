@@ -9,8 +9,14 @@ requestRoutes.post('/', Auth.Authorization, Auth.RequireRole(['membro', 'admin',
 // Listar solicitações destinadas ao papel do usuário logado
 requestRoutes.get('/', Auth.Authorization, requestController.listForTarget);
 
+// Listar solicitações do próprio usuário (histórico pessoal)
+requestRoutes.get('/mine', Auth.Authorization, requestController.listMine);
+
 // Listar todas as solicitações (apenas para master)
 requestRoutes.get('/all', Auth.Authorization, Auth.RequireRole(['master']), requestController.listAll);
+
+// Listar histórico de solicitações dos funcionários (apenas para admin/master)
+requestRoutes.get('/all-admin', Auth.Authorization, Auth.RequireRole(['admin', 'master']), requestController.listAllForAdmin);
 
 // Aprovar/Recusar (apenas admin aprova leves; master aprova pesadas)
 requestRoutes.post('/:id/approve', Auth.Authorization, Auth.RequireRole(['admin', 'master']), requestController.approve);

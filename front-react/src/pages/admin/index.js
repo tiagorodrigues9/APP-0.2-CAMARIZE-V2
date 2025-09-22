@@ -8,14 +8,19 @@ const CreatableSelect = dynamic(() => import('react-select/creatable'), { ssr: f
 
 export default function AdminPanel() {
   const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const [initialTabApplied, setInitialTabApplied] = useState(false);
   const [items, setItems] = useState([]);
+  const [allRequests, setAllRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
   const [cativeiros, setCativeiros] = useState([]);
   const [fazendas, setFazendas] = useState([]);
   const [tiposCamarao, setTiposCamarao] = useState([]);
   const [condicoesIdeais, setCondicoesIdeais] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState('cativeiros'); // solicitacoes | cativeiros
+  const [tab, setTab] = useState('cativeiros'); // requests | solicitacoes | cativeiros
+  const [requesterFilter, setRequesterFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   const [expandedFazenda, setExpandedFazenda] = useState({}); // id -> bool
   const [expandedCativeiro, setExpandedCativeiro] = useState({}); // id -> bool
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -56,11 +61,64 @@ export default function AdminPanel() {
     }
   };
 
+  const loadAllRequests = async () => {
+    try {
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${apiUrl}/requests/all-admin`, { headers });
+      return response.data;
+    } catch (e) {
+      console.error('Erro ao carregar requests dos funcionários:', e);
+      return [];
+    }
+  };
+
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       load();
     }
   }, [authLoading, isAuthenticated]);
+
+  // Respeitar query ?tab=... para abrir diretamente a aba correspondente
+  useEffect(() => {
+    if (typeof window === 'undefined' || initialTabApplied) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const qTab = params.get('tab');
+      if (qTab && ['requests', 'solicitacoes', 'cativeiros'].includes(qTab)) {
+        setTab(qTab);
+      }
+      setInitialTabApplied(true);
+    } catch {}
+  }, [initialTabApplied]);
+
+  useEffect(() => {
+    if (tab === 'requests' && isAuthenticated) {
+      loadAllRequests().then(setAllRequests);
+    }
+  }, [tab, isAuthenticated]);
+
+  useEffect(() => {
+    let filtered = [...allRequests];
+    if (requesterFilter) {
+      filtered = filtered.filter(item =>
+        item.requesterUser?.nome?.toLowerCase().includes(requesterFilter.toLowerCase()) ||
+        item.requesterUser?.email?.toLowerCase().includes(requesterFilter.toLowerCase())
+      );
+    }
+    if (dateFilter) {
+      const [year, month, day] = dateFilter.split('-').map(Number);
+      const filterDate = new Date(year, month - 1, day);
+      const fy = filterDate.getFullYear();
+      const fm = filterDate.getMonth();
+      const fd = filterDate.getDate();
+      filtered = filtered.filter(item => {
+        const d = new Date(item.createdAt);
+        return d.getFullYear() === fy && d.getMonth() === fm && d.getDate() === fd;
+      });
+    }
+    setFilteredRequests(filtered);
+  }, [allRequests, requesterFilter, dateFilter]);
 
   const groupedByFazenda = () => {
     const map = {};
@@ -126,8 +184,18 @@ export default function AdminPanel() {
       const token = getToken();
       const headers = { Authorization: `Bearer ${token}` };
       const { action, payload, _id } = item;
-      if (action === 'editar_cativeiro' && payload?.cativeiroId && payload?.nome) {
-        await axios.patch(`${apiUrl}/cativeiros/${payload.cativeiroId}`, { nome: payload.nome }, { headers });
+      if (action === 'editar_cativeiro' && payload?.cativeiroId) {
+        const body = {};
+        if (typeof payload.nome !== 'undefined') body.nome = payload.nome;
+        if (typeof payload.id_tipo_camarao !== 'undefined') body.id_tipo_camarao = payload.id_tipo_camarao;
+        if (typeof payload.temp_media_diaria !== 'undefined') body.temp_media_diaria = payload.temp_media_diaria;
+        if (typeof payload.ph_medio_diario !== 'undefined') body.ph_medio_diario = payload.ph_medio_diario;
+        if (typeof payload.amonia_media_diaria !== 'undefined') body.amonia_media_diaria = payload.amonia_media_diaria;
+        if (Object.keys(body).length === 0) {
+          alert('Nada para aplicar neste request.');
+          return;
+        }
+        await axios.patch(`${apiUrl}/cativeiros/${payload.cativeiroId}`, body, { headers });
       } else if (action === 'editar_sensor' && payload?.id && payload?.apelido) {
         await axios.patch(`${apiUrl}/sensores/${payload.id}`, { apelido: payload.apelido }, { headers });
       } else {
@@ -207,9 +275,86 @@ export default function AdminPanel() {
         </button>
       </div>
       <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
+        <button onClick={() => setTab('requests')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='requests'?'#eef':'#fff' }}>Requests</button>
         <button onClick={() => setTab('solicitacoes')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='solicitacoes'?'#eef':'#fff' }}>Solicitações</button>
         <button onClick={() => setTab('cativeiros')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='cativeiros'?'#eef':'#fff' }}>Cativeiros</button>
       </div>
+
+      {tab === 'requests' && (
+        <section>
+          <h3>Histórico de Requests dos Funcionários</h3>
+          <div style={{
+            display: 'flex', gap: 12, marginBottom: 16, padding: 12, background: '#f9fafb', borderRadius: 8, alignItems: 'center', flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: '14px', fontWeight: '500' }}>Solicitante:</label>
+              <input
+                type="text"
+                placeholder="Nome ou email..."
+                value={requesterFilter}
+                onChange={(e) => setRequesterFilter(e.target.value)}
+                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px', minWidth: '200px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: '14px', fontWeight: '500' }}>Data:</label>
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px' }}
+              />
+            </div>
+            <button
+              onClick={() => setDateFilter(new Date().toISOString().split('T')[0])}
+              style={{ padding: '6px 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '14px' }}
+            >
+              Hoje
+            </button>
+            <button
+              onClick={() => { setRequesterFilter(''); setDateFilter(''); }}
+              style={{ padding: '6px 12px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '14px' }}
+            >
+              Limpar Filtros
+            </button>
+            <div style={{ fontSize: '14px', color: '#6b7280' }}>
+              {filteredRequests.length} de {allRequests.length} requests
+            </div>
+          </div>
+
+          {filteredRequests.length === 0 && allRequests.length > 0 && (
+            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhum request encontrado com os filtros aplicados.</div>
+          )}
+          {filteredRequests.length === 0 && allRequests.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhum request encontrado.</div>
+          )}
+
+          {filteredRequests.map(item => (
+            <div key={item._id} style={{ border: '1px solid #eee', padding: 12, marginBottom: 10, borderRadius: 6, background: item.status === 'aprovado' ? '#f0fdf4' : item.status === 'recusado' ? '#fef2f2' : '#fff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div>
+                  <strong>Solicitante:</strong> {item.requesterUser?.nome || 'N/A'} ({item.requesterUser?.email || 'N/A'})
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, fontSize: '12px', background: item.status === 'aprovado' ? '#dcfce7' : item.status === 'recusado' ? '#fee2e2' : '#fef3c7', color: item.status === 'aprovado' ? '#166534' : item.status === 'recusado' ? '#991b1b' : '#92400e' }}>
+                  {item.status === 'aprovado' ? '✅ Aprovado' : item.status === 'recusado' ? '❌ Recusado' : '⏳ Pendente'}
+                </div>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <strong>Ação:</strong> {item.action}
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <strong>Data:</strong> {new Date(item.createdAt).toLocaleString('pt-BR')}
+              </div>
+              {item.payload && Object.keys(item.payload).length > 0 && (
+                <div>
+                  <strong>Detalhes:</strong>
+                  <pre style={{ background: '#f9fafb', padding: 8, borderRadius: 4, fontSize: '12px', marginTop: 4, overflow: 'auto', maxHeight: '200px' }}>{JSON.stringify(item.payload, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       {tab === 'solicitacoes' && (
         <section>

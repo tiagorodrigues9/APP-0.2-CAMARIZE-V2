@@ -474,7 +474,35 @@ export default function EditCativeiroPage() {
           labelWhenAllowed="Atualizar"
           labelWhenRequest="Solicitar atualização"
           action="editar_cativeiro"
-          buildPayload={() => ({ cativeiroId: id, nome: nomeCativeiro })}
+          buildPayload={() => {
+            const payload = { cativeiroId: id };
+            // Incluir apenas campos alterados
+            if (nomeCativeiro && nomeCativeiro !== (cativeiro?.nome || '')) {
+              payload.nome = nomeCativeiro;
+            }
+            const originalTipoId = cativeiro?.id_tipo_camarao?._id || cativeiro?.id_tipo_camarao || null;
+            const selectedTipoId = (typeof tipoCamarao === 'object')
+              ? (tipoCamarao._id || tipoCamarao.value || '')
+              : (tipoCamarao || '');
+            if (selectedTipoId && selectedTipoId !== originalTipoId) {
+              payload.id_tipo_camarao = selectedTipoId;
+            }
+            // Diferenças de condições ideais
+            const originalTemp = (cativeiro?.condicoes_ideais?.temp_ideal ?? cativeiro?.temp_media_diaria ?? '').toString();
+            const originalPh = (cativeiro?.condicoes_ideais?.ph_ideal ?? cativeiro?.ph_medio_diario ?? '').toString();
+            const originalAmonia = (cativeiro?.condicoes_ideais?.amonia_ideal ?? cativeiro?.amonia_media_diaria ?? '').toString();
+
+            if (tempMedia?.toString() && tempMedia.toString() !== originalTemp) {
+              payload.temp_media_diaria = tempMedia;
+            }
+            if (phMedio?.toString() && phMedio.toString() !== originalPh) {
+              payload.ph_medio_diario = phMedio;
+            }
+            if (amoniaMedia?.toString() && amoniaMedia.toString() !== originalAmonia) {
+              payload.amonia_media_diaria = amoniaMedia;
+            }
+            return payload;
+          }}
           onSuccess={handleSubmit}
         />
       </form>

@@ -187,6 +187,7 @@ export default function MasterPanel() {
         </div>
       );
     } else if (action === 'editar_cativeiro') {
+      const tipoCamarao = payload.id_tipo_camarao ? (tiposCamarao.find(t => t._id === payload.id_tipo_camarao) || null) : null;
       return (
         <div style={{ 
           background: '#f8fafc', 
@@ -196,7 +197,12 @@ export default function MasterPanel() {
           border: '1px solid #e2e8f0'
         }}>
           <div><strong>Cativeiro ID:</strong> {payload.cativeiroId || 'N/A'}</div>
-          <div><strong>Novo Nome:</strong> {payload.nome || 'N/A'}</div>
+          {typeof payload.nome !== 'undefined' && (
+            <div><strong>Novo Nome:</strong> {payload.nome || 'N/A'}</div>
+          )}
+          {typeof payload.id_tipo_camarao !== 'undefined' && (
+            <div><strong>Novo Tipo de Camarão:</strong> {tipoCamarao ? tipoCamarao.nome : payload.id_tipo_camarao || 'N/A'}</div>
+          )}
         </div>
       );
     } else if (action === 'editar_sensor') {

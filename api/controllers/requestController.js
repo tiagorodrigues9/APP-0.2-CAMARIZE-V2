@@ -133,5 +133,40 @@ const listAll = async (req, res) => {
   }
 };
 
-export default { create, listForTarget, listAll, approve, reject };
+// Listar histórico de solicitações dos funcionários (membros) para admins
+const listAllForAdmin = async (req, res) => {
+  try {
+    const user = await userService.getById(req.loggedUser.id);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    if (user.role !== 'admin' && user.role !== 'master') {
+      return res.status(403).json({ error: 'Acesso restrito a Admin/Master' });
+    }
+
+    // Mostrar histórico aprovado/recusado de solicitações feitas por membros para admins
+    const items = await requestService.list({
+      targetRole: 'admin',
+      requesterRole: 'membro',
+      status: { $in: ['aprovado', 'recusado'] }
+    });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Listar solicitações do usuário logado (histórico pessoal)
+const listMine = async (req, res) => {
+  try {
+    const user = await userService.getById(req.loggedUser.id);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const items = await requestService.list({ requesterUser: user._id });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export default { create, listForTarget, listAll, listAllForAdmin, listMine, approve, reject };
 
