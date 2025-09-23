@@ -16,6 +16,9 @@ export default function AdminPanel() {
   const [fazendas, setFazendas] = useState([]);
   const [tiposCamarao, setTiposCamarao] = useState([]);
   const [condicoesIdeais, setCondicoesIdeais] = useState([]);
+  const [sensores, setSensores] = useState([]); // mantemos carregado para futuras funcionalidades
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  const [swapForm, setSwapForm] = useState({ cativeiroId: '', temperatura: false, ph: false, amonia: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('cativeiros'); // requests | solicitacoes | cativeiros
@@ -42,18 +45,20 @@ export default function AdminPanel() {
       setLoading(true);
       const token = getToken();
       const headers = { Authorization: `Bearer ${token}` };
-      const [reqs, fzs, cats, tipos, condicoes] = await Promise.all([
+      const [reqs, fzs, cats, tipos, condicoes, sens] = await Promise.all([
         axios.get(`${apiUrl}/requests`, { headers }),
         axios.get(`${apiUrl}/fazendas`, { headers }),
         axios.get(`${apiUrl}/cativeiros`, { headers }),
         axios.get(`${apiUrl}/camaroes`, { headers }),
         axios.get(`${apiUrl}/condicoes-ideais`, { headers }),
+        axios.get(`${apiUrl}/sensores`, { headers }),
       ]);
       setItems(reqs.data);
       setFazendas(fzs.data);
       setCativeiros(cats.data);
       setTiposCamarao(tipos.data);
       setCondicoesIdeais(condicoes.data);
+      setSensores(sens.data);
     } catch (e) {
       setError('Erro ao carregar dados');
     } finally {
@@ -138,11 +143,136 @@ export default function AdminPanel() {
     return map;
   };
 
+  const loadSensorsForCativeiro = async (cativeiroId) => {
+    try {
+      const token = getToken();
+      const res = await axios.get(`${apiUrl}/cativeiros/${cativeiroId}/sensores`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const raw = Array.isArray(res.data) ? res.data : [];
+      const sensores = raw.map(item => item?.id_sensor || item).filter(Boolean);
+      setCativeiros(prev => prev.map(c => c._id === cativeiroId ? { ...c, sensores } : c));
+    } catch (e) {}
+  };
+
+  const getActionLabel = (action) => {
+    const map = {
+      editar_cativeiro_add_sensor: 'Solicitar vínculo de sensor',
+      editar_cativeiro_remove_sensor: 'Solicitar troca de sensor(es)',
+      cadastrar_cativeiro: 'Cadastrar cativeiro',
+      editar_cativeiro: 'Editar cativeiro',
+      editar_sensor: 'Editar sensor',
+    };
+    return map[action] || action;
+  };
+
+  const formatRequestDetails = (action, payload) => {
+    const getCativeiroNomeById = (cid) => {
+      const c = cativeiros.find(x => String(x._id) === String(cid));
+      return c ? (c.nome || c._id) : (cid || 'N/A');
+    };
+    if (action === 'editar_cativeiro_add_sensor') {
+      const nome = getCativeiroNomeById(payload?.cativeiroId);
+      return (
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div><strong>Cativeiro:</strong> {nome}</div>
+          <div style={{ color: '#6b7280', fontSize: 13, marginTop: 4 }}>Solicitação de vínculo de sensores (Master decidirá quais associar).</div>
+        </div>
+      );
+    }
+    if (action === 'editar_cativeiro_remove_sensor') {
+      const nome = getCativeiroNomeById(payload?.cativeiroId);
+      const tipos = Array.isArray(payload?.tipos) ? payload.tipos : [];
+      return (
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: 6 }}><strong>Cativeiro:</strong> {nome}</div>
+          <div><strong>Trocar sensores:</strong></div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+            {tipos.length > 0 ? tipos.map(t => (
+              <span key={t} style={{ padding: '4px 8px', background: '#e5e7eb', borderRadius: 999, fontSize: 12, color: '#374151' }}>{t}</span>
+            )) : <span style={{ color: '#6b7280' }}>Nenhum tipo informado</span>}
+          </div>
+        </div>
+      );
+    }
+    if (action === 'editar_cativeiro') {
+      const nome = typeof payload?.cativeiroId !== 'undefined' ? getCativeiroNomeById(payload.cativeiroId) : '—';
+      const tipoCam = typeof payload?.id_tipo_camarao !== 'undefined' ? (tiposCamarao.find(t => String(t._id) === String(payload.id_tipo_camarao)) || null) : null;
+      return (
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: 6 }}><strong>Cativeiro:</strong> {nome}</div>
+          <div><strong>Alterações:</strong></div>
+          <ul style={{ marginTop: 6, marginLeft: 18 }}>
+            {typeof payload?.nome !== 'undefined' && (<li><strong>Nome:</strong> {payload.nome || 'N/A'}</li>)}
+            {typeof payload?.id_tipo_camarao !== 'undefined' && (
+              <li><strong>Tipo de Camarão:</strong> {tipoCam ? tipoCam.nome : payload.id_tipo_camarao}</li>
+            )}
+            {typeof payload?.temp_media_diaria !== 'undefined' && (<li><strong>Temp ideal (°C):</strong> {payload.temp_media_diaria}</li>)}
+            {typeof payload?.ph_medio_diario !== 'undefined' && (<li><strong>pH ideal:</strong> {payload.ph_medio_diario}</li>)}
+            {typeof payload?.amonia_media_diaria !== 'undefined' && (<li><strong>Amônia ideal (mg/L):</strong> {payload.amonia_media_diaria}</li>)}
+          </ul>
+        </div>
+      );
+    }
+    if (action === 'editar_sensor') {
+      return (
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div><strong>Sensor ID:</strong> {payload?.id || 'N/A'}</div>
+          <div><strong>Novo Apelido:</strong> {payload?.apelido || 'N/A'}</div>
+        </div>
+      );
+    }
+    return (
+      <pre style={{ background: '#f9fafb', padding: 8, borderRadius: 4, fontSize: '12px', marginTop: 4, overflow: 'auto', maxHeight: '200px' }}>{JSON.stringify(payload, null, 2)}</pre>
+    );
+  };
+
   const getFazendaName = (id) => {
     const idStr = String(id);
     const f = fazendas.find(fz => String(fz._id) === idStr);
     if (!f) return 'Sem fazenda';
     return f.nome && f.codigo ? `${f.nome} - ${f.codigo}` : (f.nome || f.codigo || id);
+  };
+
+  const solicitarVinculoSensores = async (cativeiro) => {
+    try {
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post(`${apiUrl}/requests`, {
+        action: 'editar_cativeiro_add_sensor', // Master decidirá quais sensores associar
+        payload: { cativeiroId: cativeiro._id },
+        fazenda: cativeiro.fazenda || null
+      }, { headers });
+      alert('Solicitação enviada para o Master.');
+    } catch (e) {
+      alert('Erro ao solicitar vínculo: ' + (e?.response?.data?.error || e.message));
+    }
+  };
+
+  const abrirSwapModal = (cativeiroId) => {
+    setSwapForm({ cativeiroId, temperatura: false, ph: false, amonia: false });
+    setShowSwapModal(true);
+  };
+
+  const solicitarTrocaSensores = async () => {
+    try {
+      const { cativeiroId, temperatura, ph, amonia } = swapForm;
+      if (!cativeiroId) { setShowSwapModal(false); return; }
+      const tipos = [];
+      if (temperatura) tipos.push('temperatura');
+      if (ph) tipos.push('ph');
+      if (amonia) tipos.push('amonia');
+      if (tipos.length === 0) { alert('Selecione pelo menos um tipo para trocar.'); return; }
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post(`${apiUrl}/requests`, {
+        action: 'editar_cativeiro_remove_sensor',
+        payload: { cativeiroId, tipos },
+        fazenda: null
+      }, { headers });
+      setShowSwapModal(false);
+      alert('Solicitação de troca enviada para o Master.');
+    } catch (e) {
+      alert('Erro ao solicitar troca: ' + (e?.response?.data?.error || e.message));
+    }
   };
 
   const updateCativeiroNome = async (id, nome) => {
@@ -161,14 +291,15 @@ export default function AdminPanel() {
     const token = getToken();
     const cativeiro = cativeiros.find(c => c._id === id);
     if (!cativeiro) return;
-    
-    // Enviar os dados das condições ideais diretamente
+
+    // Para que o backend crie/atualize CondicoesIdeais, é necessário enviar id_tipo_camarao
+    const idTipo = cativeiro.id_tipo_camarao?._id || cativeiro.id_tipo_camarao || '';
     const data = {
-      temp_media_diaria: condicoes_ideais?.temp_ideal || '',
-      ph_medio_diario: condicoes_ideais?.ph_ideal || '',
-      amonia_media_diaria: condicoes_ideais?.amonia_ideal || ''
+      id_tipo_camarao: idTipo,
+      temp_media_diaria: condicoes_ideais?.temp_ideal,
+      ph_medio_diario: condicoes_ideais?.ph_ideal,
+      amonia_media_diaria: condicoes_ideais?.amonia_ideal
     };
-    
     await axios.patch(`${apiUrl}/cativeiros/${id}`, data, { headers: { Authorization: `Bearer ${token}` } });
     await load();
   };
@@ -188,9 +319,27 @@ export default function AdminPanel() {
         const body = {};
         if (typeof payload.nome !== 'undefined') body.nome = payload.nome;
         if (typeof payload.id_tipo_camarao !== 'undefined') body.id_tipo_camarao = payload.id_tipo_camarao;
+        // Suporta formatos alternativos dos campos das condições ideais
         if (typeof payload.temp_media_diaria !== 'undefined') body.temp_media_diaria = payload.temp_media_diaria;
         if (typeof payload.ph_medio_diario !== 'undefined') body.ph_medio_diario = payload.ph_medio_diario;
         if (typeof payload.amonia_media_diaria !== 'undefined') body.amonia_media_diaria = payload.amonia_media_diaria;
+        if (typeof payload.temp_ideal !== 'undefined') body.temp_media_diaria = payload.temp_ideal;
+        if (typeof payload.ph_ideal !== 'undefined') body.ph_medio_diario = payload.ph_ideal;
+        if (typeof payload.amonia_ideal !== 'undefined') body.amonia_media_diaria = payload.amonia_ideal;
+        if (payload.condicoes_ideais && typeof payload.condicoes_ideais === 'object') {
+          const ci = payload.condicoes_ideais;
+          if (typeof ci.temp_ideal !== 'undefined') body.temp_media_diaria = ci.temp_ideal;
+          if (typeof ci.ph_ideal !== 'undefined') body.ph_medio_diario = ci.ph_ideal;
+          if (typeof ci.amonia_ideal !== 'undefined') body.amonia_media_diaria = ci.amonia_ideal;
+        }
+        // Se alguma condição ideal foi informada e não veio id_tipo_camarao no payload,
+        // enviamos o id_tipo_camarao atual do cativeiro para o backend criar/atualizar CondicoesIdeais
+        const hasCondicoes = ['temp_media_diaria','ph_medio_diario','amonia_media_diaria'].some(k => typeof body[k] !== 'undefined');
+        if (hasCondicoes && typeof body.id_tipo_camarao === 'undefined') {
+          const cat = cativeiros.find(c => c._id === payload.cativeiroId);
+          const tipoAtual = cat?.id_tipo_camarao?._id || cat?.id_tipo_camarao;
+          if (tipoAtual) body.id_tipo_camarao = tipoAtual;
+        }
         if (Object.keys(body).length === 0) {
           alert('Nada para aplicar neste request.');
           return;
@@ -202,6 +351,8 @@ export default function AdminPanel() {
         alert('Este tipo de solicitação não é leve ou falta informação.');
         return;
       }
+      // Recarrega dados do cativeiro para refletir alterações já aplicadas
+      await load();
       await act(_id, 'approve');
     } catch (e) {
       alert('Falha ao aplicar alteração: ' + (e?.response?.data?.error || e.message));
@@ -333,22 +484,22 @@ export default function AdminPanel() {
             <div key={item._id} style={{ border: '1px solid #eee', padding: 12, marginBottom: 10, borderRadius: 6, background: item.status === 'aprovado' ? '#f0fdf4' : item.status === 'recusado' ? '#fef2f2' : '#fff' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div>
-                  <strong>Solicitante:</strong> {item.requesterUser?.nome || 'N/A'} ({item.requesterUser?.email || 'N/A'})
+                  <strong>Solicitante:</strong> {(item.requesterUser?.nome || item.requester?.nome || 'N/A')} ({item.requesterUser?.email || item.requester?.email || 'N/A'})
                 </div>
                 <div style={{ padding: '4px 8px', borderRadius: 4, fontSize: '12px', background: item.status === 'aprovado' ? '#dcfce7' : item.status === 'recusado' ? '#fee2e2' : '#fef3c7', color: item.status === 'aprovado' ? '#166534' : item.status === 'recusado' ? '#991b1b' : '#92400e' }}>
                   {item.status === 'aprovado' ? '✅ Aprovado' : item.status === 'recusado' ? '❌ Recusado' : '⏳ Pendente'}
                 </div>
               </div>
               <div style={{ marginBottom: 8 }}>
-                <strong>Ação:</strong> {item.action}
+                <strong>Ação:</strong> {getActionLabel(item.action)}
               </div>
               <div style={{ marginBottom: 8 }}>
                 <strong>Data:</strong> {new Date(item.createdAt).toLocaleString('pt-BR')}
               </div>
-              {item.payload && Object.keys(item.payload).length > 0 && (
+              {item.payload && (
                 <div>
                   <strong>Detalhes:</strong>
-                  <pre style={{ background: '#f9fafb', padding: 8, borderRadius: 4, fontSize: '12px', marginTop: 4, overflow: 'auto', maxHeight: '200px' }}>{JSON.stringify(item.payload, null, 2)}</pre>
+                  {formatRequestDetails(item.action, item.payload)}
                 </div>
               )}
             </div>
@@ -360,27 +511,35 @@ export default function AdminPanel() {
         <section>
           <h3>Solicitações leves dos funcionários</h3>
           {items.length === 0 && <div>Nenhuma solicitação pendente.</div>}
-          {items.map(item => {
-            const changedFields = Object.keys(item.payload).filter(key => !['_id', 'cativeiroId', 'sensorId'].includes(key));
-            return (
-              <div key={item._id} style={{ border: '1px solid #eee', padding: 12, marginBottom: 10 }}>
-                <div><b>Solicitante:</b> {item.requester?.nome} ({item.requester?.email})</div>
-                <div><b>Ação:</b> {item.action}</div>
-                {changedFields.length > 0 && (
-                  <div>
-                    <b>Alterações solicitadas:</b>
-                    <ul style={{ margin: '4px 0 0 20px', padding: 0 }}>
-                      {changedFields.map(field => (
-                        <li key={field}>{field}: {JSON.stringify(item.payload[field])}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <button onClick={() => applyAndApprove(item)} style={{ marginTop: 8 }}>Aplicar e Aprovar</button>
-                <button onClick={() => act(item._id, 'reject')} style={{ marginLeft: 8 }}>Recusar</button>
+          {items.map(item => (
+            <div key={item._id} style={{ border: '1px solid #eee', padding: 12, marginBottom: 10, borderRadius: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div><b>Solicitante:</b> {(item.requesterUser?.nome || item.requester?.nome || 'N/A')} ({item.requesterUser?.email || item.requester?.email || 'N/A'})</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>{new Date(item.createdAt).toLocaleString('pt-BR')}</div>
               </div>
-            );
-          })}
+              <div style={{ marginBottom: 8 }}><b>Ação:</b> {getActionLabel(item.action)}</div>
+              {item.payload && (
+                <div style={{ marginBottom: 12 }}>
+                  <strong>Detalhes:</strong>
+                  {formatRequestDetails(item.action, item.payload)}
+                </div>
+              )}
+              <div>
+                <button 
+                  onClick={() => applyAndApprove(item)}
+                  style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', marginRight: 8 }}
+                >
+                  Aplicar e Aprovar
+                </button>
+                <button 
+                  onClick={() => act(item._id, 'reject')}
+                  style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer' }}
+                >
+                  Recusar
+                </button>
+              </div>
+            </div>
+          ))}
         </section>
       )}
 
@@ -527,15 +686,51 @@ export default function AdminPanel() {
                               </button>
                             </div>
                           </div>
-                          <div style={{ marginBottom: 8 }}>
-                            <strong>Sensores:</strong>
-                            {cativeiro.sensores && cativeiro.sensores.length > 0 ? (
-                              <ul style={{ margin: '4px 0 0 20px', padding: 0 }}>
+                          <div style={{ marginTop: 10 }}>
+                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Sensores</div>
+                            {Array.isArray(cativeiro.sensores) && cativeiro.sensores.length > 0 ? (
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 {cativeiro.sensores.map(s => (
-                                  <li key={s._id}>{s.apelido || s.id_tipo_sensor} ({s.id_tipo_sensor})</li>
+                                  <div key={s._id || s} style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '6px 10px',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: 999,
+                                    background: '#f9fafb',
+                                    fontSize: 12,
+                                    color: '#374151'
+                                  }}>
+                                    <span style={{
+                                      padding: '2px 6px',
+                                      borderRadius: 6,
+                                      background: '#eef2ff',
+                                      color: '#3730a3',
+                                      fontWeight: 600,
+                                      textTransform: 'uppercase'
+                                    }}>{(s.id_tipo_sensor || 'sensor')}</span>
+                                    <span style={{ fontWeight: 600 }}>{s.apelido || '—'}</span>
+                                  </div>
                                 ))}
-                              </ul>
-                            ) : ' Nenhum sensor associado.'}
+                              </div>
+                            ) : (
+                              <div style={{ color: '#6b7280' }}>Nenhum sensor associado.</div>
+                            )}
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+                              <button
+                                onClick={() => solicitarVinculoSensores(cativeiro)}
+                                style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
+                              >
+                                Solicitar vínculo
+                              </button>
+                              <button
+                                onClick={() => abrirSwapModal(cativeiro._id)}
+                                style={{ background: '#111827', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
+                              >
+                                Solicitar troca
+                              </button>
+                            </div>
                           </div>
                           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                             <input
@@ -560,6 +755,36 @@ export default function AdminPanel() {
             </div>
           ))}
         </section>
+      )}
+
+      {showSwapModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div style={{ background: '#fff', padding: 20, borderRadius: 8, width: '95%', maxWidth: 420 }}>
+            <h3 style={{ marginTop: 0 }}>Solicitar troca de sensores</h3>
+            <p style={{ marginTop: 0, color: '#555' }}>Selecione os tipos de sensores que deseja trocar neste cativeiro.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" checked={swapForm.temperatura} onChange={(e) => setSwapForm(f => ({ ...f, temperatura: e.target.checked }))} />
+                Temperatura
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" checked={swapForm.ph} onChange={(e) => setSwapForm(f => ({ ...f, ph: e.target.checked }))} />
+                pH
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" checked={swapForm.amonia} onChange={(e) => setSwapForm(f => ({ ...f, amonia: e.target.checked }))} />
+                Amônia
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setShowSwapModal(false)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={solicitarTrocaSensores} style={{ border: 'none', background: '#3b82f6', color: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Solicitar</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal para solicitar criação de cativeiro */}

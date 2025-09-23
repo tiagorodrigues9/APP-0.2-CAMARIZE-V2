@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Modal from '../../components/Modal';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -15,11 +16,43 @@ export default function MasterPanel() {
   const [error, setError] = useState('');
   const [requesterFilter, setRequesterFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
-  const [tab, setTab] = useState('requests'); // requests | solicitacoes | usuarios | cativeiros
+  const [tab, setTab] = useState('requests'); // requests | solicitacoes | usuarios | cativeiros | sensores
+  const [sensores, setSensores] = useState([]);
+  const [showCreateSensor, setShowCreateSensor] = useState(false);
+  const [sensorForm, setSensorForm] = useState({ id_tipo_sensor: 'temperatura', apelido: '', fotoFile: null });
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkForm, setLinkForm] = useState({ sensorId: '', cativeiroId: '', currentSensorIds: [] });
   const [expandedFazenda, setExpandedFazenda] = useState({}); // id -> bool
   const [expandedCativeiro, setExpandedCativeiro] = useState({}); // id -> bool
   const [cativeirosByFazenda, setCativeirosByFazenda] = useState({}); // fazendaId -> [cativeiros]
   const [loadingFazenda, setLoadingFazenda] = useState({}); // fazendaId -> bool
+
+  // Modal de criação de cativeiro
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    fazendaId: '',
+    nome: '',
+    id_tipo_camarao: '',
+    data_instalacao: '',
+    temp_media_diaria: '',
+    ph_medio_diario: '',
+    amonia_media_diaria: '',
+    fotoFile: null
+  });
+
+  // Modal de edição de cativeiro
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    id: '',
+    fazendaId: '',
+    nome: '',
+    id_tipo_camarao: '',
+    data_instalacao: '',
+    temp_media_diaria: '',
+    ph_medio_diario: '',
+    amonia_media_diaria: '',
+    fotoFile: null
+  });
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   const getToken = () => (typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null);
@@ -29,18 +62,20 @@ export default function MasterPanel() {
       setLoading(true);
       const token = getToken();
       const headers = { Authorization: `Bearer ${token}` };
-      const [reqs, us, fzs, cats, tipos] = await Promise.all([
+      const [reqs, us, fzs, cats, tipos, sens] = await Promise.all([
         axios.get(`${apiUrl}/requests`, { headers }), // Requests pendentes para aprovar/recusar
         axios.get(`${apiUrl}/users`, { headers }),
         axios.get(`${apiUrl}/fazendas`, { headers }),
         axios.get(`${apiUrl}/cativeiros`, { headers }),
         axios.get(`${apiUrl}/camaroes`, { headers }),
+        axios.get(`${apiUrl}/sensores`, { headers }),
       ]);
       setItems(reqs.data);
       setUsers(us.data);
       setFazendas(fzs.data);
       setCativeiros(cats.data);
       setTiposCamarao(tipos.data);
+      setSensores(sens.data);
     } catch (e) {
       setError('Erro ao carregar dados');
     } finally {
@@ -149,6 +184,34 @@ export default function MasterPanel() {
   };
 
   const formatRequestDetails = (action, payload) => {
+    const getCativeiroNomeById = (cid) => {
+      const c = cativeiros.find(x => String(x._id) === String(cid));
+      return c ? (c.nome || c._id) : (cid || 'N/A');
+    };
+    if (action === 'editar_cativeiro_add_sensor') {
+      const nome = getCativeiroNomeById(payload?.cativeiroId);
+      return (
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div><strong>Cativeiro:</strong> {nome}</div>
+          <div style={{ color: '#6b7280', fontSize: 13, marginTop: 4 }}>Solicitação de vínculo de sensores (Master decidirá quais associar).</div>
+        </div>
+      );
+    }
+    if (action === 'editar_cativeiro_remove_sensor') {
+      const nome = getCativeiroNomeById(payload?.cativeiroId);
+      const tipos = Array.isArray(payload?.tipos) ? payload.tipos : [];
+      return (
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: 6 }}><strong>Cativeiro:</strong> {nome}</div>
+          <div><strong>Trocar sensores:</strong></div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+            {tipos.length > 0 ? tipos.map(t => (
+              <span key={t} style={{ padding: '4px 8px', background: '#e5e7eb', borderRadius: 999, fontSize: 12, color: '#374151' }}>{t}</span>
+            )) : <span style={{ color: '#6b7280' }}>Nenhum tipo informado</span>}
+          </div>
+        </div>
+      );
+    }
     if (action === 'cadastrar_cativeiro') {
       const fazenda = fazendas.find(f => f._id === payload.fazendaId);
       const tipoCamarao = tiposCamarao.find(t => t._id === payload.id_tipo_camarao);
@@ -236,6 +299,17 @@ export default function MasterPanel() {
     }
   };
 
+  const getActionLabel = (action) => {
+    const map = {
+      editar_cativeiro_add_sensor: 'Solicitar vínculo de sensor',
+      editar_cativeiro_remove_sensor: 'Solicitar troca de sensor(es)',
+      cadastrar_cativeiro: 'Cadastrar cativeiro',
+      editar_cativeiro: 'Editar cativeiro',
+      editar_sensor: 'Editar sensor',
+    };
+    return map[action] || action;
+  };
+
   const changeRole = async (id, role) => {
     const token = getToken();
     await axios.patch(`${apiUrl}/users/${id}/role`, { role }, { headers: { Authorization: `Bearer ${token}` } });
@@ -265,6 +339,18 @@ export default function MasterPanel() {
     return;
   };
 
+  const loadSensorsForCativeiro = async (cativeiroId) => {
+    try {
+      const token = getToken();
+      const res = await axios.get(`${apiUrl}/cativeiros/${cativeiroId}/sensores`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const raw = Array.isArray(res.data) ? res.data : [];
+      const sensores = raw.map(item => item?.id_sensor || item).filter(Boolean);
+      setCativeiros(prev => prev.map(c => c._id === cativeiroId ? { ...c, sensores } : c));
+    } catch (e) {
+      // mantém estado atual; não quebra UI
+    }
+  };
+
   const getFazendaName = (id) => {
     const idStr = String(id);
     const f = fazendas.find(fz => String(fz._id) === idStr);
@@ -284,10 +370,73 @@ export default function MasterPanel() {
     await load();
   };
 
+  const openCreateModal = (presetFazendaId, presetNome) => {
+    const defaultFz = String(presetFazendaId || fazendas[0]?._id || '');
+    const defaultTipo = (Array.isArray(tiposCamarao) && tiposCamarao.length > 0) ? String(tiposCamarao[0]._id) : '';
+    setCreateForm({
+      fazendaId: defaultFz,
+      nome: (presetNome && presetNome.trim()) ? presetNome.trim() : '',
+      id_tipo_camarao: defaultTipo,
+      data_instalacao: new Date().toISOString().slice(0,10),
+      temp_media_diaria: '',
+      ph_medio_diario: '',
+      amonia_media_diaria: '',
+      fotoFile: null
+    });
+    setShowCreateModal(true);
+  };
+
   const createCativeiro = async (fazendaId, nome) => {
-    const token = getToken();
-    await axios.post(`${apiUrl}/cativeiros`, { fazendaId, nome }, { headers: { Authorization: `Bearer ${token}` } });
-    await load();
+    try {
+      const token = getToken();
+      const tipoDefault = (Array.isArray(tiposCamarao) && tiposCamarao.length > 0) ? tiposCamarao[0]._id : null;
+      if (!tipoDefault) {
+        alert('Não foi possível obter o tipo de camarão. Recarregue a página.');
+        return;
+      }
+      const payload = {
+        fazendaId,
+        nome: nome && nome.trim() ? nome.trim() : 'Novo cativeiro',
+        id_tipo_camarao: tipoDefault,
+        data_instalacao: new Date().toISOString(),
+        // Campos opcionais: o backend já trata valores ausentes
+        temp_media_diaria: '',
+        ph_medio_diario: '',
+        amonia_media_diaria: ''
+      };
+      await axios.post(`${apiUrl}/cativeiros`, payload, { headers: { Authorization: `Bearer ${token}` } });
+      await load();
+      // manter a fazenda expandida e limpar input
+      setExpandedFazenda(prev => ({ ...prev, [String(fazendaId)]: true }));
+      const input = document.getElementById(`novo-c-${fazendaId}`);
+      if (input) input.value = '';
+    } catch (e) {
+      console.error('Falha ao criar cativeiro:', e);
+      alert('Erro ao criar cativeiro. Verifique os dados e tente novamente.');
+    }
+  };
+
+  const submitCreateModal = async () => {
+    try {
+      const token = getToken();
+      const form = new FormData();
+      form.append('fazendaId', createForm.fazendaId);
+      form.append('nome', createForm.nome && createForm.nome.trim() ? createForm.nome.trim() : 'Novo cativeiro');
+      form.append('id_tipo_camarao', createForm.id_tipo_camarao);
+      form.append('data_instalacao', new Date(createForm.data_instalacao).toISOString());
+      if (createForm.temp_media_diaria) form.append('temp_media_diaria', createForm.temp_media_diaria);
+      if (createForm.ph_medio_diario) form.append('ph_medio_diario', createForm.ph_medio_diario);
+      if (createForm.amonia_media_diaria) form.append('amonia_media_diaria', createForm.amonia_media_diaria);
+      if (createForm.fotoFile) form.append('foto_cativeiro', createForm.fotoFile);
+
+      await axios.post(`${apiUrl}/cativeiros`, form, { headers: { Authorization: `Bearer ${token}` } });
+      setShowCreateModal(false);
+      await load();
+      setExpandedFazenda(prev => ({ ...prev, [String(createForm.fazendaId)]: true }));
+    } catch (e) {
+      console.error('Falha ao criar cativeiro:', e);
+      alert('Erro ao criar cativeiro. Verifique os dados e tente novamente.');
+    }
   };
 
   const localRole = typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')?.role) : undefined;
@@ -321,6 +470,7 @@ export default function MasterPanel() {
         <button onClick={() => setTab('solicitacoes')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='solicitacoes'?'#eef':'#fff' }}>Solicitações</button>
         <button onClick={() => setTab('usuarios')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='usuarios'?'#eef':'#fff' }}>Usuários</button>
         <button onClick={() => setTab('cativeiros')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='cativeiros'?'#eef':'#fff' }}>Cativeiros</button>
+        <button onClick={() => setTab('sensores')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='sensores'?'#eef':'#fff' }}>Sensores</button>
       </div>
 
       {tab === 'requests' && (
@@ -447,12 +597,12 @@ export default function MasterPanel() {
                   </div>
                 </div>
                 <div style={{ marginBottom: 8 }}>
-                  <strong>Ação:</strong> {item.action}
+                  <strong>Ação:</strong> {getActionLabel(item.action)}
                 </div>
                 <div style={{ marginBottom: 8 }}>
                   <strong>Data:</strong> {new Date(item.createdAt).toLocaleString('pt-BR')}
                 </div>
-                {item.payload && Object.keys(item.payload).length > 0 && (
+                {item.payload && (
                   <div>
                     <strong>Detalhes:</strong>
                     {formatRequestDetails(item.action, item.payload)}
@@ -564,18 +714,9 @@ export default function MasterPanel() {
       {tab === 'cativeiros' && (
         <section>
           <h3>Fazendas e Cativeiros</h3>
-          {/* Criar cativeiro rápido */}
+          {/* Criar cativeiro (abre modal) */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '12px 0' }}>
-            <select id="sel-fazenda-quick" style={{ padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
-              {fazendas.map(f => (
-                <option key={f._id} value={f._id}>{getFazendaName(f._id)}</option>
-              ))}
-            </select>
-            <input id="nome-cativeiro-quick" placeholder="Nome do novo cativeiro" style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-            <button onClick={() => createCativeiro(
-              document.getElementById('sel-fazenda-quick').value,
-              document.getElementById('nome-cativeiro-quick').value
-            )} style={{ border: '1px solid #eee', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Criar cativeiro</button>
+            <button onClick={() => openCreateModal()} style={{ border: '1px solid #eee', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Criar cativeiro</button>
           </div>
           {(() => {
             const grouped = groupedByFazenda();
@@ -608,14 +749,16 @@ export default function MasterPanel() {
               </div>
               {expandedFazenda[fzId] && (
                 <div style={{ padding: 10 }}>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <input placeholder="Nome do novo cativeiro" id={`novo-c-${fzId}`} style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-                    <button onClick={() => createCativeiro(fzId, document.getElementById(`novo-c-${fzId}`).value)} style={{ border: '1px solid #eee', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Criar</button>
-                  </div>
                   {(((Array.isArray(cativeirosByFazenda[fzId]) && cativeirosByFazenda[fzId].length > 0) ? cativeirosByFazenda[fzId] : cats) || []).map(c => (
                     <div key={c._id} style={{ border: '1px solid #eee', borderRadius: 6, marginBottom: 8 }}>
                       <div
-                        onClick={() => setExpandedCativeiro(prev => ({ ...prev, [c._id]: !prev[c._id] }))}
+                        onClick={() => {
+                          const will = !expandedCativeiro[c._id];
+                          setExpandedCativeiro(prev => ({ ...prev, [c._id]: will }));
+                          if (will && !(Array.isArray(c.sensores) && c.sensores.length)) {
+                            loadSensorsForCativeiro(c._id);
+                          }
+                        }}
                         style={{ padding: 8, cursor: 'pointer', background: '#fff', display: 'flex', justifyContent: 'space-between' }}
                       >
                         <span>{c.nome || c._id}</span>
@@ -624,9 +767,21 @@ export default function MasterPanel() {
                       {expandedCativeiro[c._id] && (
                         <div style={{ padding: 10 }}>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                            <label style={{ minWidth: 80 }}>Nome:</label>
-                            <input defaultValue={c.nome} id={`nome-${c._id}`} style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-                            <button onClick={() => updateCativeiroNome(c._id, document.getElementById(`nome-${c._id}`).value)} style={{ border: '1px solid #eee', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Salvar</button>
+                            <div style={{ flex: 1 }} />
+                            <button onClick={() => {
+                              setEditForm({
+                                id: c._id,
+                                fazendaId: String(c.fazenda?._id || c.fazenda || ''),
+                                nome: c.nome || '',
+                                id_tipo_camarao: String(c.id_tipo_camarao?._id || c.id_tipo_camarao || ''),
+                                data_instalacao: c.data_instalacao ? new Date(c.data_instalacao).toISOString().slice(0,10) : new Date().toISOString().slice(0,10),
+                                temp_media_diaria: c.condicoes_ideais?.temp_ideal || c.temp_media_diaria || '',
+                                ph_medio_diario: c.condicoes_ideais?.ph_ideal || c.ph_medio_diario || '',
+                                amonia_media_diaria: c.condicoes_ideais?.amonia_ideal || c.amonia_media_diaria || '',
+                                fotoFile: null
+                              });
+                              setShowEditModal(true);
+                            }} style={{ border: '1px solid #ddd', background: '#f9fafb', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Alterar</button>
                             <button onClick={() => deleteCativeiro(c._id)} style={{ border: '1px solid #fca5a5', background: '#fee2e2', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Excluir</button>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -636,16 +791,38 @@ export default function MasterPanel() {
                             <div><b>pH ideal:</b> {c.condicoes_ideais?.ph_ideal || c.ph_medio_diario || '—'}</div>
                             <div><b>Amônia ideal:</b> {c.condicoes_ideais?.amonia_ideal || c.amonia_media_diaria || '—'}</div>
                           </div>
-                          {Array.isArray(c.sensores) && c.sensores.length > 0 && (
-                            <div style={{ marginTop: 10 }}>
-                              <b>Sensores:</b>
-                              <ul>
+                          <div style={{ marginTop: 10 }}>
+                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Sensores</div>
+                            {Array.isArray(c.sensores) && c.sensores.length > 0 ? (
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 {c.sensores.map(s => (
-                                  <li key={s._id || s}>{s.apelido || s.id_tipo_sensor || s}</li>
+                                  <div key={s._id || s} style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '6px 10px',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: 999,
+                                    background: '#f9fafb',
+                                    fontSize: 12,
+                                    color: '#374151'
+                                  }}>
+                                    <span style={{
+                                      padding: '2px 6px',
+                                      borderRadius: 6,
+                                      background: '#eef2ff',
+                                      color: '#3730a3',
+                                      fontWeight: 600,
+                                      textTransform: 'uppercase'
+                                    }}>{(s.id_tipo_sensor || 'sensor')}</span>
+                                    <span style={{ fontWeight: 600 }}>{s.apelido || '—'}</span>
+                                  </div>
                                 ))}
-                              </ul>
-                            </div>
-                          )}
+                              </div>
+                            ) : (
+                              <div style={{ color: '#6b7280' }}>Nenhum sensor relacionado</div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -658,6 +835,233 @@ export default function MasterPanel() {
           })()}
         </section>
       )}
+
+      {tab === 'sensores' && (
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3>Gerenciar Sensores</h3>
+            <button onClick={() => setShowCreateSensor(true)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '14px' }}>Novo sensor</button>
+          </div>
+          {sensores.length === 0 && <div style={{ color: '#888' }}>Nenhum sensor cadastrado.</div>}
+          {sensores.map(s => (
+            <div key={s._id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div><b>Tipo:</b> {s.id_tipo_sensor}</div>
+                  <div><b>Apelido:</b> {s.apelido || '—'}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setSensorForm({ id: s._id, id_tipo_sensor: s.id_tipo_sensor, apelido: s.apelido || '', fotoFile: null }) || setShowCreateSensor(true)} style={{ border: '1px solid #ddd', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Editar</button>
+                  <button onClick={() => {
+                    setLinkForm({ sensorId: s._id, cativeiroId: '', currentSensorIds: [] });
+                    setShowLinkModal(true);
+                  }} style={{ border: '1px solid #ddd', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Relacionar</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {showCreateSensor && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', padding: 20, borderRadius: 8, width: '95%', maxWidth: 480 }}>
+            <h3 style={{ marginTop: 0 }}>{sensorForm?.id ? 'Editar sensor' : 'Novo sensor'}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Tipo de sensor</label>
+                <select value={sensorForm.id_tipo_sensor} onChange={(e) => setSensorForm(f => ({ ...f, id_tipo_sensor: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+                  <option value="temperatura">temperatura</option>
+                  <option value="ph">ph</option>
+                  <option value="amonia">amonia</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Apelido</label>
+                <input value={sensorForm.apelido} onChange={(e) => setSensorForm(f => ({ ...f, apelido: e.target.value }))} placeholder="ex: Sensor A" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Imagem (opcional)</label>
+                <input type="file" accept="image/*" onChange={(e) => setSensorForm(f => ({ ...f, fotoFile: e.target.files?.[0] || null }))} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button onClick={() => setShowCreateSensor(false)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={async () => {
+                try {
+                  const token = getToken();
+                  if (sensorForm?.id) {
+                    const form = new FormData();
+                    form.append('id_tipo_sensor', sensorForm.id_tipo_sensor);
+                    form.append('apelido', sensorForm.apelido || '');
+                    if (sensorForm.fotoFile) form.append('foto_sensor', sensorForm.fotoFile);
+                    await axios.put(`${apiUrl}/sensores/${sensorForm.id}`, form, { headers: { Authorization: `Bearer ${token}` } });
+                  } else {
+                    const form = new FormData();
+                    form.append('id_tipo_sensor', sensorForm.id_tipo_sensor);
+                    form.append('apelido', sensorForm.apelido || '');
+                    if (sensorForm.fotoFile) form.append('foto_sensor', sensorForm.fotoFile);
+                    await axios.post(`${apiUrl}/sensores`, form, { headers: { Authorization: `Bearer ${token}` } });
+                  }
+                  setShowCreateSensor(false);
+                  await load();
+                  setTab('sensores');
+                } catch (e) {
+                  alert('Erro ao salvar sensor: ' + (e?.response?.data?.error || e.message));
+                }
+              }} style={{ border: 'none', background: '#10b981', color: '#fff', borderRadius: 6, padding: '8px 12px', cursor: 'pointer' }}>{sensorForm?.id ? 'Salvar' : 'Criar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLinkModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', padding: 20, borderRadius: 8, width: '95%', maxWidth: 480 }}>
+            <h3 style={{ marginTop: 0 }}>Relacionar sensor a cativeiro</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Cativeiro</label>
+                <select value={linkForm.cativeiroId} onChange={(e) => setLinkForm(f => ({ ...f, cativeiroId: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+                  <option value="">Selecione</option>
+                  {cativeiros.map(c => (
+                    <option key={c._id} value={c._id}>{c.nome || c._id}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button onClick={() => setShowLinkModal(false)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={async () => {
+                try {
+                  const token = getToken();
+                  // Master aplica diretamente a relação criando SensoresxCativeiros
+                  await axios.post(`${apiUrl}/sensoresxCativeiros`, { id_sensor: linkForm.sensorId, id_cativeiro: linkForm.cativeiroId }, { headers: { Authorization: `Bearer ${token}` } });
+                  setShowLinkModal(false);
+                  await load();
+                  setTab('cativeiros');
+                } catch (e) {
+                  alert('Erro ao relacionar: ' + (e?.response?.data?.error || e.message));
+                }
+              }} style={{ border: 'none', background: '#3b82f6', color: '#fff', borderRadius: 6, padding: '8px 12px', cursor: 'pointer' }}>Relacionar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal de criação de cativeiro */}
+      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Criar cativeiro">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Fazenda</label>
+            <select value={createForm.fazendaId} onChange={(e) => setCreateForm(f => ({ ...f, fazendaId: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+              {fazendas.map(f => (
+                <option key={f._id} value={f._id}>{getFazendaName(f._id)}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Nome</label>
+            <input value={createForm.nome} onChange={(e) => setCreateForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome do cativeiro" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Tipo de camarão</label>
+            <select value={createForm.id_tipo_camarao} onChange={(e) => setCreateForm(f => ({ ...f, id_tipo_camarao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+              {tiposCamarao.map(t => (
+                <option key={t._id} value={t._id}>{t.nome}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Data de instalação</label>
+            <input type="date" value={createForm.data_instalacao} onChange={(e) => setCreateForm(f => ({ ...f, data_instalacao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Temp ideal (°C)</label>
+            <input value={createForm.temp_media_diaria} onChange={(e) => setCreateForm(f => ({ ...f, temp_media_diaria: e.target.value }))} placeholder="ex: 26" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>pH ideal</label>
+            <input value={createForm.ph_medio_diario} onChange={(e) => setCreateForm(f => ({ ...f, ph_medio_diario: e.target.value }))} placeholder="ex: 7.5" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Amônia ideal (mg/L)</label>
+            <input value={createForm.amonia_media_diaria} onChange={(e) => setCreateForm(f => ({ ...f, amonia_media_diaria: e.target.value }))} placeholder="ex: 0.05" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Imagem do cativeiro</label>
+            <input type="file" accept="image/*" onChange={(e) => setCreateForm(f => ({ ...f, fotoFile: e.target.files?.[0] || null }))} style={{ width: '100%' }} />
+          </div>
+          <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+            <button onClick={() => setShowCreateModal(false)} style={{ border: '1px solid #e5e7eb', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={submitCreateModal} style={{ border: 'none', background: '#10b981', color: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Criar</button>
+          </div>
+        </div>
+      </Modal>
+      {/* Modal de edição de cativeiro */}
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Editar cativeiro">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Nome</label>
+            <input value={editForm.nome} onChange={(e) => setEditForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome do cativeiro" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Tipo de camarão</label>
+            <select value={editForm.id_tipo_camarao} onChange={(e) => setEditForm(f => ({ ...f, id_tipo_camarao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+              {tiposCamarao.map(t => (
+                <option key={t._id} value={t._id}>{t.nome}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Data de instalação</label>
+            <input type="date" value={editForm.data_instalacao} onChange={(e) => setEditForm(f => ({ ...f, data_instalacao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Temp ideal (°C)</label>
+            <input value={editForm.temp_media_diaria} onChange={(e) => setEditForm(f => ({ ...f, temp_media_diaria: e.target.value }))} placeholder="ex: 26" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>pH ideal</label>
+            <input value={editForm.ph_medio_diario} onChange={(e) => setEditForm(f => ({ ...f, ph_medio_diario: e.target.value }))} placeholder="ex: 7.5" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Amônia ideal (mg/L)</label>
+            <input value={editForm.amonia_media_diaria} onChange={(e) => setEditForm(f => ({ ...f, amonia_media_diaria: e.target.value }))} placeholder="ex: 0.05" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Imagem do cativeiro (opcional)</label>
+            <input type="file" accept="image/*" onChange={(e) => setEditForm(f => ({ ...f, fotoFile: e.target.files?.[0] || null }))} style={{ width: '100%' }} />
+          </div>
+          <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+            <button onClick={() => setShowEditModal(false)} style={{ border: '1px solid #e5e7eb', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={async () => {
+              try {
+                const token = getToken();
+                // Enviar dados básicos via PATCH
+                await axios.patch(`${apiUrl}/cativeiros/${editForm.id}`, {
+                  nome: editForm.nome,
+                  id_tipo_camarao: editForm.id_tipo_camarao,
+                  data_instalacao: new Date(editForm.data_instalacao).toISOString(),
+                  temp_media_diaria: editForm.temp_media_diaria,
+                  ph_medio_diario: editForm.ph_medio_diario,
+                  amonia_media_diaria: editForm.amonia_media_diaria
+                }, { headers: { Authorization: `Bearer ${token}` } });
+                // Enviar imagem se houver
+                if (editForm.fotoFile) {
+                  const form = new FormData();
+                  form.append('foto_cativeiro', editForm.fotoFile);
+                  await axios.put(`${apiUrl}/cativeiros/${editForm.id}`, form, { headers: { Authorization: `Bearer ${token}` } });
+                }
+                setShowEditModal(false);
+                await load();
+              } catch (e) {
+                console.error('Falha ao editar cativeiro:', e);
+                alert('Erro ao editar cativeiro.');
+              }
+            }} style={{ border: 'none', background: '#3b82f6', color: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Salvar</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

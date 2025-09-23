@@ -20,6 +20,13 @@ class RequestService {
   async reject(id, approverUser) {
     return await Request.findByIdAndUpdate(id, { status: 'recusado', approverUser }, { new: true });
   }
+
+  async deleteByIdForRequester(id, requesterUserId) {
+    const found = await Request.findOne({ _id: id, requesterUser: requesterUserId });
+    if (!found) return null;
+    await Request.deleteOne({ _id: id });
+    return { success: true };
+  }
 }
 
 export default new RequestService();

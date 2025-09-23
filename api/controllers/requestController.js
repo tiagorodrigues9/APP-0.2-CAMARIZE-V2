@@ -168,5 +168,18 @@ const listMine = async (req, res) => {
   }
 };
 
-export default { create, listForTarget, listAll, listAllForAdmin, listMine, approve, reject };
+// Excluir solicitação do próprio usuário
+const removeMine = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.loggedUser.id;
+    const result = await requestService.deleteByIdForRequester(id, userId);
+    if (!result) return res.status(404).json({ error: 'Solicitação não encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export default { create, listForTarget, listAll, listAllForAdmin, listMine, approve, reject, removeMine };
 

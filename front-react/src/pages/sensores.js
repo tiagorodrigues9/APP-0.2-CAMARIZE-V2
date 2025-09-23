@@ -122,27 +122,54 @@ export default function SensoresPage() {
   }, [sensores, filtroAtivo]);
 
   useEffect(() => {
-    async function fetchSensores() {
+    async function fetchSensoresDoUsuario() {
       try {
         setLoading(true);
         setError(null);
-        
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        
+        const token = typeof window !== "undefined" ? (sessionStorage.getItem('token') || localStorage.getItem("token")) : null;
+
         if (!token) {
           setError('Você precisa estar logado para acessar esta página');
           setLoading(false);
           return;
         }
-        
-        const res = await axios.get(`${apiUrl}/sensores`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setSensores(res.data);
-        setSensoresFiltrados(res.data); // Inicializar filtrados com todos os sensores
+
+        // 1) Buscar cativeiros do usuário
+        const cativeirosRes = await axios.get(`${apiUrl}/cativeiros`, { headers: { Authorization: `Bearer ${token}` } });
+        const cativeiros = Array.isArray(cativeirosRes.data) ? cativeirosRes.data : [];
+
+        // 2) Para cada cativeiro, buscar sensores relacionados
+        const sensoresLists = await Promise.all(
+          cativeiros.map(async (c) => {
+            try {
+              const rel = await axios.get(`${apiUrl}/cativeiros/${c._id}/sensores`);
+              const list = Array.isArray(rel.data) ? rel.data : [];
+              // normalizar estrutura: alguns retornos podem vir com populate
+              return list.map(r => {
+                const s = r.id_sensor || r;
+                return {
+                  _id: s._id || s.id || `${c._id}-${Math.random()}`,
+                  id_tipo_sensor: s.id_tipo_sensor || s.tipo || 'sensor',
+                  apelido: s.apelido || '',
+                  cativeiroId: c._id,
+                  cativeiroNome: c.nome || c._id
+                };
+              });
+            } catch {
+              return [];
+            }
+          })
+        );
+
+        // 3) Achatar e deduplicar por _id
+        const merged = [].concat(...sensoresLists);
+        const uniqueById = Array.from(new Map(merged.map(s => [String(s._id), s])).values());
+
+        setSensores(uniqueById);
+        setSensoresFiltrados(uniqueById);
       } catch (err) {
-        console.error('Erro ao buscar sensores:', err);
+        console.error('Erro ao buscar sensores do usuário:', err);
         if (err.response?.status === 401) {
           setError('Sessão expirada. Faça login novamente para continuar.');
         } else {
@@ -154,7 +181,7 @@ export default function SensoresPage() {
         setLoading(false);
       }
     }
-    fetchSensores();
+    fetchSensoresDoUsuario();
   }, []);
 
   const handleEditSensor = (sensorId) => {
@@ -293,8 +320,8 @@ export default function SensoresPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
           <SensorList 
             sensores={sensoresFiltrados} 
-            onEdit={handleEditSensor}
-            onDelete={handleDeleteSensor}
+            onEdit={undefined}
+            onDelete={undefined}
             useOriginalIndex={ordenacaoAtiva}
             originalSensores={sensores}
           />
@@ -304,134 +331,7 @@ export default function SensoresPage() {
         <img src="/images/logo.svg" alt="Camarize Logo" style={{ width: 180, height: 40 }} />
       </div>
       
-      {/* Modal de confirmação de exclusão */}
-      {showDeleteModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          backdropFilter: 'blur(4px)'
-        }}>
-          <div style={{
-            background: '#fff',
-            padding: '32px 24px',
-            borderRadius: '16px',
-            minWidth: '320px',
-            maxWidth: '90vw',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px',
-            alignItems: 'center',
-            textAlign: 'center',
-            border: '1px solid #e5e7eb'
-          }}>
-            {/* Ícone de aviso */}
-            <div style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              background: '#fef3c7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '8px'
-            }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            
-            {/* Título */}
-            <div style={{
-              fontWeight: '700',
-              fontSize: '20px',
-              color: '#1f2937',
-              lineHeight: '1.2'
-            }}>
-              Confirmar Exclusão
-            </div>
-            
-            {/* Mensagem */}
-            <p style={{
-              margin: '0',
-              fontSize: '16px',
-              color: '#6b7280',
-              lineHeight: '1.5',
-              maxWidth: '280px'
-            }}>
-              Tem certeza que deseja excluir este sensor? Esta ação não pode ser desfeita.
-            </p>
-            
-            {/* Botões */}
-            <div style={{
-              display: 'flex',
-              gap: '12px',
-              width: '100%',
-              marginTop: '8px'
-            }}>
-              <button 
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setSensorToDelete(null);
-                }}
-                style={{
-                  flex: 1,
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  border: '1px solid #d1d5db',
-                  background: '#fff',
-                  color: '#374151',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.background = '#f9fafb';
-                  e.target.style.borderColor = '#9ca3af';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.background = '#fff';
-                  e.target.style.borderColor = '#d1d5db';
-                }}
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={confirmDelete}
-                style={{
-                  flex: 1,
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: '#dc2626',
-                  color: '#fff',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.background = '#b91c1c';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.background = '#dc2626';
-                }}
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal de confirmação de exclusão - removido para funcionário */}
 
       {/* Componente de Notificação */}
       {notification.show && (

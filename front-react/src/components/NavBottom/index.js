@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import styles from "./NavBottom.module.css";
 
-export default function NavBottom({ homeRef, settingsRef, plusRef, notificationsRef, profileRef }) {
+export default function NavBottom({ homeRef, settingsRef, notificationsRef, profileRef }) {
   const router = useRouter();
   return (
     <nav className={styles.navBottom}>

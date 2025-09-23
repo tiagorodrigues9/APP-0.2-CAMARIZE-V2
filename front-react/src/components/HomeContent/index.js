@@ -294,23 +294,58 @@ export default function HomeContent() {
           </div>
         ) : (
           cativeiros.map((cativeiro, idx) => {
-            // Converter buffer para base64 se existir (sem depender de Buffer do Node)
+            // Converter buffer para base64 de forma robusta (vários formatos possíveis do MongoDB)
             let fotoUrl = "/images/cativeiro1.jpg";
-            if (cativeiro.foto_cativeiro && cativeiro.foto_cativeiro.data) {
-              try {
-                const bytes = new Uint8Array(cativeiro.foto_cativeiro.data);
-                let binary = "";
-                for (let i = 0; i < bytes.byteLength; i += 1) {
-                  binary += String.fromCharCode(bytes[i]);
+            try {
+              const fc = cativeiro.foto_cativeiro;
+              if (fc) {
+                let binary = '';
+                let imageData = fc;
+
+                if (fc.data) {
+                  imageData = fc.data;
                 }
-                const base64String = typeof window !== 'undefined' ? window.btoa(binary) : "";
-                if (base64String) {
+
+                // Caso venha como string base64 direta
+                if (typeof imageData === 'string') {
+                  const str = imageData.trim();
+                  if (str.startsWith('data:image')) {
+                    fotoUrl = str; // já é um data URL
+                  } else {
+                    // assume base64 simples
+                    fotoUrl = `data:image/jpeg;base64,${str}`;
+                  }
+                }
+
+                // Caso venha no formato Extended JSON do Mongo
+                if (imageData && typeof imageData === 'object' && imageData.$binary && imageData.$binary.base64) {
+                  fotoUrl = `data:image/jpeg;base64,${imageData.$binary.base64}`;
+                }
+
+                if (Array.isArray(imageData)) {
+                  for (let i = 0; i < imageData.length; i++) binary += String.fromCharCode(imageData[i]);
+                } else if (imageData && typeof imageData === 'object' && imageData.buffer) {
+                  const bytes = new Uint8Array(imageData.buffer);
+                  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+                } else if (imageData instanceof ArrayBuffer) {
+                  const bytes = new Uint8Array(imageData);
+                  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+                } else if (imageData && typeof imageData === 'object' && imageData.data) {
+                  const data = imageData.data;
+                  if (Array.isArray(data)) {
+                    for (let i = 0; i < data.length; i++) binary += String.fromCharCode(data[i]);
+                  } else if (data instanceof ArrayBuffer) {
+                    const bytes = new Uint8Array(data);
+                    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+                  }
+                }
+
+                if (!fotoUrl && binary.length > 0 && typeof window !== 'undefined') {
+                  const base64String = window.btoa(binary);
                   fotoUrl = `data:image/jpeg;base64,${base64String}`;
                 }
-              } catch (e) {
-                // mantém imagem padrão
               }
-            }
+            } catch {}
             return (
               <div
                 key={cativeiro._id}

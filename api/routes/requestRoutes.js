@@ -22,5 +22,8 @@ requestRoutes.get('/all-admin', Auth.Authorization, Auth.RequireRole(['admin', '
 requestRoutes.post('/:id/approve', Auth.Authorization, Auth.RequireRole(['admin', 'master']), requestController.approve);
 requestRoutes.post('/:id/reject', Auth.Authorization, Auth.RequireRole(['admin', 'master']), requestController.reject);
 
+// Excluir solicitação do próprio usuário
+requestRoutes.delete('/:id', Auth.Authorization, requestController.removeMine);
+
 export default requestRoutes;
 
