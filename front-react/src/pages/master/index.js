@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Modal from '../../components/Modal';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,7 +16,34 @@ export default function MasterPanel() {
   const [error, setError] = useState('');
   const [requesterFilter, setRequesterFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [actionFilter, setActionFilter] = useState('');
   const [tab, setTab] = useState('requests'); // requests | solicitacoes | usuarios | cativeiros | sensores
+  const [chatConversations, setChatConversations] = useState([]);
+  const [chatSelectedId, setChatSelectedId] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatText, setChatText] = useState('');
+  const chatEndRef = useRef(null);
+  const getMyId = () => {
+    const fromUser = user?.id || user?._id;
+    const stored = (typeof window !== 'undefined') ? (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')) : {};
+    const fromStorage = stored?.id || stored?._id;
+    return String(fromUser || fromStorage || '');
+  };
+
+  const getDisplayName = (senderId) => {
+    const me = getMyId();
+    if (String(senderId) === String(me)) return 'Você (Master)';
+    const u = (users || []).find(x => String(x.id || x._id) === String(senderId));
+    // Se não achou no users (pois users contém admins), rotula como Admin por padrão
+    return u?.nome || u?.email || 'Admin';
+  };
+
+  const getConversationTitle = (conv) => {
+    const me = getMyId();
+    const otherId = (Array.isArray(conv?.participants) ? conv.participants : []).find(p => String(p) !== String(me));
+    const u = (users || []).find(x => String(x.id || x._id) === String(otherId));
+    return u?.nome || u?.email || 'Admin';
+  };
   const [sensores, setSensores] = useState([]);
   const [showCreateSensor, setShowCreateSensor] = useState(false);
   const [sensorForm, setSensorForm] = useState({ id_tipo_sensor: 'temperatura', apelido: '', fotoFile: null });
@@ -102,6 +129,76 @@ export default function MasterPanel() {
     }
   }, [authLoading, isAuthenticated]);
 
+  // Chat polling
+  useEffect(() => {
+    let timer;
+    async function tick() {
+      try {
+        if (tab !== 'chat') return;
+        const token = getToken();
+        const headers = { Authorization: `Bearer ${token}` };
+        const convs = await axios.get(`${apiUrl}/chat/conversations/mine`, { headers });
+        setChatConversations(convs.data || []);
+        if (chatSelectedId) {
+          const msgs = await axios.get(`${apiUrl}/chat/conversations/${chatSelectedId}/messages`, { headers });
+          setChatMessages(msgs.data || []);
+        }
+      } catch {}
+    }
+    if (tab === 'chat') {
+      tick();
+      timer = setInterval(tick, 5000);
+    }
+    return () => { if (timer) clearInterval(timer); };
+  }, [tab, chatSelectedId]);
+
+  const openConversation = async (convId) => {
+    try {
+      setChatSelectedId(convId);
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const msgs = await axios.get(`${apiUrl}/chat/conversations/${convId}/messages`, { headers });
+      setChatMessages(msgs.data || []);
+    } catch {}
+  };
+
+  const startConversationWithAdmin = async (adminId) => {
+    try {
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      let me = (user?.id) || (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')?.id);
+      if (!me) {
+        const meRes = await axios.get(`${apiUrl}/users/me`, { headers });
+        me = meRes.data?._id || meRes.data?.id;
+      }
+      if (!me || !adminId) throw new Error('IDs inválidos');
+      const res = await axios.post(`${apiUrl}/chat/conversations`, { adminId, masterId: me }, { headers });
+      const convs = await axios.get(`${apiUrl}/chat/conversations/mine`, { headers });
+      setChatConversations(convs.data || []);
+      setTab('chat');
+      if (res?.data?._id) openConversation(res.data._id);
+    } catch (e) {
+      const msg = e?.response?.data?.error || e.message || 'Falha desconhecida';
+      alert('Não foi possível iniciar a conversa: ' + msg);
+    }
+  };
+
+  const sendChatMessage = async () => {
+    try {
+      if (!chatSelectedId || !chatText.trim()) return;
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.post(`${apiUrl}/chat/conversations/${chatSelectedId}/messages`, { text: chatText }, { headers });
+      setChatMessages(prev => [...prev, res.data]);
+      setChatText('');
+    } catch {}
+  };
+
+  // Auto-scroll para última mensagem
+  useEffect(() => {
+    try { chatEndRef.current && chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch {}
+  }, [chatMessages.length, chatSelectedId]);
+
   useEffect(() => {
     if (tab === 'requests' && isAuthenticated) {
       loadAllRequests().then(setAllRequests);
@@ -162,8 +259,17 @@ export default function MasterPanel() {
       });
     }
 
+    // Filtro por ação (nome técnico e label amigável)
+    if (actionFilter) {
+      const q = actionFilter.toLowerCase();
+      filtered = filtered.filter(item => {
+        const raw = (item.action || '').toLowerCase();
+        const label = (getActionLabel(item.action) || '').toLowerCase();
+        return raw.includes(q) || label.includes(q);
+      });
+    }
     setFilteredRequests(filtered);
-  }, [allRequests, requesterFilter, dateFilter]);
+  }, [allRequests, requesterFilter, dateFilter, actionFilter]);
 
   const act = async (id, op) => {
     const token = getToken();
@@ -471,6 +577,7 @@ export default function MasterPanel() {
         <button onClick={() => setTab('usuarios')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='usuarios'?'#eef':'#fff' }}>Usuários</button>
         <button onClick={() => setTab('cativeiros')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='cativeiros'?'#eef':'#fff' }}>Cativeiros</button>
         <button onClick={() => setTab('sensores')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='sensores'?'#eef':'#fff' }}>Sensores</button>
+        <button onClick={() => setTab('chat')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='chat'?'#eef':'#fff' }}>Chat</button>
       </div>
 
       {tab === 'requests' && (
@@ -519,6 +626,22 @@ export default function MasterPanel() {
                 }}
               />
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: '14px', fontWeight: '500' }}>Ação:</label>
+              <input
+                type="text"
+                placeholder="Ex: editar_cativeiro..."
+                value={actionFilter}
+                onChange={(e) => setActionFilter(e.target.value)}
+                style={{ 
+                  padding: '6px 10px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: 6, 
+                  fontSize: '14px',
+                  minWidth: '200px'
+                }}
+              />
+            </div>
             
             <button
               onClick={() => {
@@ -541,7 +664,7 @@ export default function MasterPanel() {
             </button>
             
             <button
-              onClick={clearFilters}
+              onClick={() => { clearFilters(); setActionFilter(''); }}
               style={{
                 padding: '6px 12px',
                 background: '#6b7280',
@@ -816,6 +939,19 @@ export default function MasterPanel() {
                                       textTransform: 'uppercase'
                                     }}>{(s.id_tipo_sensor || 'sensor')}</span>
                                     <span style={{ fontWeight: 600 }}>{s.apelido || '—'}</span>
+                                    <button onClick={async () => {
+                                      try {
+                                        const token = getToken();
+                                        await axios.delete(`${apiUrl}/sensoresxCativeiros`, {
+                                          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                          data: { id_sensor: s._id || s.id, id_cativeiro: c._id }
+                                        });
+                                        // Atualiza estado local removendo o sensor
+                                        setCativeiros(prev => prev.map(cat => cat._id === c._id ? { ...cat, sensores: (cat.sensores || []).filter(x => (x._id || x.id) !== (s._id || s.id)) } : cat));
+                                      } catch (e) {
+                                        alert('Erro ao desvincular sensor: ' + (e?.response?.data?.message || e.message));
+                                      }
+                                    }} style={{ marginLeft: 6, border: '1px solid #fca5a5', background: '#fee2e2', color: '#991b1b', borderRadius: 999, padding: '2px 6px', cursor: 'pointer' }}>Desvincular</button>
                                   </div>
                                 ))}
                               </div>
@@ -860,6 +996,60 @@ export default function MasterPanel() {
               </div>
             </div>
           ))}
+        </section>
+      )}
+
+      {tab === 'chat' && (
+        <section>
+          <h3>Chat com Admins</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 12 }}>
+            <div style={{ border: '1px solid #eee', borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ padding: 8, background: '#f9fafb', borderBottom: '1px solid #eee', fontWeight: 600 }}>Conversas</div>
+              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflow: 'auto' }}>
+                {chatConversations.length === 0 && <div style={{ color: '#888' }}>Nenhuma conversa.</div>}
+                {chatConversations.map(c => (
+                  <button key={c._id} onClick={() => openConversation(c._id)} style={{ textAlign: 'left', border: '1px solid #e5e7eb', background: chatSelectedId===c._id?'#eef':'#fff', borderRadius: 6, padding: '8px' }}>
+                    <div style={{ fontWeight: 600 }}>{getConversationTitle(c)}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>{new Date(c.updatedAt || c.lastMessageAt).toLocaleString('pt-BR')}</div>
+                  </button>
+                ))}
+              </div>
+              <div style={{ padding: 8, borderTop: '1px solid #eee' }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b7280' }}>Iniciar com Admin</label>
+                <select onChange={(e) => { const val = e.target.value; if (val) { startConversationWithAdmin(val); e.target.value=''; } }} style={{ width: '100%', padding: 6, border: '1px solid #ddd', borderRadius: 6 }}>
+                  <option value="">Selecione um admin...</option>
+                  {(users || []).filter(u => u.role === 'admin').map(u => (
+                    <option key={u.id || u._id} value={u.id || u._id}>{u.nome || u.email}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{ border: '1px solid #eee', borderRadius: 8, display: 'flex', flexDirection: 'column', height: '65vh', overflow: 'hidden' }}>
+              <div style={{ padding: 8, background: '#f9fafb', borderBottom: '1px solid #eee', fontWeight: 600 }}>Mensagens</div>
+              <div style={{ flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', overscrollBehavior: 'contain', scrollbarWidth: 'none' }}>
+                {chatSelectedId && chatMessages.map(m => {
+                  const isMine = String(m.senderId) === String(getMyId());
+                  return (
+                    <div key={m._id} style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
+                      <div style={{ fontSize: 11, color: '#6b7280', margin: isMine ? '0 4px 2px 0' : '0 0 2px 4px', textAlign: isMine ? 'right' : 'left' }}>
+                        {getDisplayName(m.senderId)}
+                      </div>
+                      <div style={{ background: isMine ? '#d1fae5' : '#f3f4f6', color: '#111827', border: '1px solid #e5e7eb', padding: '8px 10px', borderRadius: 10, borderTopRightRadius: isMine ? 2 : 10, borderTopLeftRadius: isMine ? 10 : 2 }}>
+                        <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                        <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4, textAlign: isMine ? 'right' : 'left' }}>{new Date(m.createdAt).toLocaleTimeString('pt-BR')}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!chatSelectedId && <div style={{ color: '#888' }}>Selecione uma conversa.</div>}
+                <div ref={chatEndRef} />
+              </div>
+              <div style={{ padding: 8, borderTop: '1px solid #eee', display: 'flex', gap: 8 }}>
+                <input value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="Digite sua mensagem..." style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+                <button onClick={sendChatMessage} disabled={!chatSelectedId || !chatText.trim()} style={{ padding: 8, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: (!chatSelectedId || !chatText.trim()) ? 'not-allowed' : 'pointer' }}>Enviar</button>
+              </div>
+            </div>
+          </div>
         </section>
       )}
 
@@ -935,11 +1125,24 @@ export default function MasterPanel() {
               <button onClick={async () => {
                 try {
                   const token = getToken();
+                  const cId = linkForm.cativeiroId;
                   // Master aplica diretamente a relação criando SensoresxCativeiros
-                  await axios.post(`${apiUrl}/sensoresxCativeiros`, { id_sensor: linkForm.sensorId, id_cativeiro: linkForm.cativeiroId }, { headers: { Authorization: `Bearer ${token}` } });
+                  await axios.post(`${apiUrl}/sensoresxCativeiros`, { id_sensor: linkForm.sensorId, id_cativeiro: cId }, { headers: { Authorization: `Bearer ${token}` } });
                   setShowLinkModal(false);
+                  // Recarrega listas básicas
                   await load();
+                  // Abre a aba de cativeiros
                   setTab('cativeiros');
+                  // Expande automaticamente o cativeiro e carrega seus sensores
+                  setExpandedCativeiro(prev => ({ ...prev, [String(cId)]: true }));
+                  try {
+                    const cat = (Array.isArray(cativeiros) ? cativeiros : []).find(x => String(x._id) === String(cId));
+                    const fzId = String(cat?.fazenda?._id || cat?.fazenda || '');
+                    if (fzId) {
+                      setExpandedFazenda(prev => ({ ...prev, [fzId]: true }));
+                    }
+                  } catch {}
+                  await loadSensorsForCativeiro(cId);
                 } catch (e) {
                   alert('Erro ao relacionar: ' + (e?.response?.data?.error || e.message));
                 }

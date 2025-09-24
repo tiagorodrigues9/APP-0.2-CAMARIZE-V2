@@ -33,4 +33,21 @@ router.post("/", async (req, res) => {
   }
 });
 
+// DELETE - Remover relação por par (id_sensor + id_cativeiro)
+router.delete("/", async (req, res) => {
+  try {
+    const { id_sensor, id_cativeiro } = req.body;
+    if (!id_sensor || !id_cativeiro) {
+      return res.status(400).json({ message: "id_sensor e id_cativeiro são obrigatórios" });
+    }
+    const result = await SensoresxCativeiros.deleteOne({ id_sensor, id_cativeiro });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "Relação não encontrada" });
+    }
+    res.json({ message: "Relação removida com sucesso" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router; 

@@ -174,6 +174,16 @@ const listUsers = async (req, res) => {
   }
 };
 
+// Lista somente masters (permitido para admin e master)
+const listMasters = async (req, res) => {
+  try {
+    const users = await userService.listUsers({ role: 'master' });
+    res.json(users.map(u => ({ id: u._id, nome: u.nome, email: u.email, role: u.role })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // Atualizar role - apenas master
 const changeUserRole = async (req, res) => {
   try {
@@ -190,4 +200,4 @@ const changeUserRole = async (req, res) => {
   }
 };
 
-export default { createUser, loginUser, JWTSecret, register, getUserById, updateUserPhoto, getCurrentUser, listUsers, changeUserRole };
+export default { createUser, loginUser, JWTSecret, register, getUserById, updateUserPhoto, getCurrentUser, listUsers, listMasters, changeUserRole };

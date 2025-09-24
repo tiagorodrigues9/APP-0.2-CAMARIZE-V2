@@ -10,6 +10,9 @@ import RequestButton from "@/components/RequestButton";
 
 export default function CreateContent() {
   const router = useRouter();
+  const localUser = typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}') : {};
+  const effectiveRole = localUser?.role;
+  const isMember = String(effectiveRole).toLowerCase() === 'membro';
   const [fazendas, setFazendas] = useState([]);
   const [tiposCamarao, setTiposCamarao] = useState([]);
   const [fazendaSelecionada, setFazendaSelecionada] = useState("");
@@ -54,15 +57,20 @@ export default function CreateContent() {
         const headers = { Authorization: `Bearer ${token}` };
         
         // Buscar todos os dados necessários
-        const [fazendasRes, tiposRes, sensoresRes] = await Promise.all([
+        const requests = [
           axios.get(`${apiUrl}/fazendas`, { headers }),
-          axios.get(`${apiUrl}/tipos-camarao`, { headers }),
-          axios.get(`${apiUrl}/sensores`, { headers })
-        ]);
+          axios.get(`${apiUrl}/tipos-camarao`, { headers })
+        ];
+        // Somente perfis não-membro precisam carregar lista de sensores
+        if (!isMember) {
+          requests.push(axios.get(`${apiUrl}/sensores`, { headers }));
+        }
+        const responses = await Promise.all(requests);
+        const [fazendasRes, tiposRes, sensoresRes] = [responses[0], responses[1], responses[2]];
         
         setFazendas(fazendasRes.data);
         setTiposCamarao(tiposRes.data);
-        setSensoresDisponiveis(sensoresRes.data);
+        setSensoresDisponiveis(Array.isArray(sensoresRes?.data) ? sensoresRes.data : []);
       } catch (err) {
         console.error('Erro ao buscar dados:', err);
         if (err.response?.status === 401) {
@@ -128,14 +136,17 @@ export default function CreateContent() {
     formData.append("amonia_media_diaria", amoniaMedia);
 
     
-    // Adiciona todos os sensores selecionados (máximo 3)
-    const sensoresSelecionados = sensores.filter(sensor => sensor && sensor !== "");
-    if (sensoresSelecionados.length > 0) {
-      // Envia como array para suportar múltiplos sensores
-      sensoresSelecionados.forEach((sensorId) => {
-        formData.append("sensorIds", sensorId);
-      });
-      console.log('🔗 Sensores relacionados:', sensoresSelecionados);
+    // Membros não podem relacionar sensores no cadastro
+    if (!isMember) {
+      // Adiciona todos os sensores selecionados (máximo 3)
+      const sensoresSelecionados = sensores.filter(sensor => sensor && sensor !== "");
+      if (sensoresSelecionados.length > 0) {
+        // Envia como array para suportar múltiplos sensores
+        sensoresSelecionados.forEach((sensorId) => {
+          formData.append("sensorIds", sensorId);
+        });
+        console.log('🔗 Sensores relacionados:', sensoresSelecionados);
+      }
     }
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -147,7 +158,7 @@ export default function CreateContent() {
       });
       
       // Verifica se sensores foram relacionados
-      const sensoresSelecionados = sensores.filter(sensor => sensor && sensor !== "");
+      const sensoresSelecionados = isMember ? [] : sensores.filter(sensor => sensor && sensor !== "");
       const message = sensoresSelecionados.length > 0 
         ? `Cativeiro cadastrado com sucesso! ${sensoresSelecionados.length} sensor(es) relacionado(s) automaticamente.`
         : "Cativeiro cadastrado com sucesso!";
@@ -270,69 +281,72 @@ export default function CreateContent() {
           />
           <span className={styles.uploadFileName}>{arquivo ? arquivo.name : "Nenhum arquivo inserido"}</span>
         </div>
-        <hr className={styles.hr} />
-        <h3 className={styles.subtitle}>Relacione os sensores</h3>
-        <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '15px', gridColumn: '1 / -1' }}>
-          Todos os sensores selecionados serão relacionados ao cativeiro automaticamente (máximo 3 sensores).
-        </p>
-        {sensores.map((sensor, idx) => (
-          <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <select
-              className={`${styles.input} ${styles.inputSelect}`}
-              value={sensor}
-              onChange={e => handleSensorChange(idx, e.target.value)}
-              aria-label={`Selecione o sensor ${idx + 1}`}
-              style={{ flex: 1 }}
-            >
-              <option value="">Selecione</option>
-              {sensoresDisponiveis
-                .filter(s => {
-                  // Mostra o sensor se ele está selecionado neste campo OU se não está selecionado em nenhum outro campo
-                  return sensor === s._id || !sensores.includes(s._id);
-                })
-                .map(s => (
-                  <option key={s._id} value={s._id}>
-                    {s.apelido ? `${s.apelido} (${s.id_tipo_sensor})` : s.id_tipo_sensor || s._id}
-                  </option>
-                ))}
-            </select>
-            {sensores.length > 1 && (
+        {!isMember && (
+          <>
+            <hr className={styles.hr} />
+            <h3 className={styles.subtitle}>Relacione os sensores</h3>
+            <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '15px', gridColumn: '1 / -1' }}>
+              Todos os sensores selecionados serão relacionados ao cativeiro automaticamente (máximo 3 sensores).
+            </p>
+            {sensores.map((sensor, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <select
+                  className={`${styles.input} ${styles.inputSelect}`}
+                  value={sensor}
+                  onChange={e => handleSensorChange(idx, e.target.value)}
+                  aria-label={`Selecione o sensor ${idx + 1}`}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Selecione</option>
+                  {sensoresDisponiveis
+                    .filter(s => {
+                      return sensor === s._id || !sensores.includes(s._id);
+                    })
+                    .map(s => (
+                      <option key={s._id} value={s._id}>
+                        {s.apelido ? `${s.apelido} (${s.id_tipo_sensor})` : s.id_tipo_sensor || s._id}
+                      </option>
+                    ))}
+                </select>
+                {sensores.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removerCampoSensor(idx)}
+                    style={{
+                      background: '#ff4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                    aria-label={`Remover sensor ${idx + 1}`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            {sensores.length < 3 && (
               <button
                 type="button"
-                onClick={() => removerCampoSensor(idx)}
+                onClick={adicionarCampoSensor}
                 style={{
-                  background: '#ff4444',
+                  background: '#4CAF50',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
-                  padding: '8px 12px',
+                  padding: '10px 16px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  marginTop: '8px'
                 }}
-                aria-label={`Remover sensor ${idx + 1}`}
               >
-                ✕
+                + Adicionar Sensor
               </button>
             )}
-          </div>
-        ))}
-        {sensores.length < 3 && (
-          <button
-            type="button"
-            onClick={adicionarCampoSensor}
-            style={{
-              background: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '10px 16px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              marginTop: '8px'
-            }}
-          >
-            + Adicionar Sensor
-          </button>
+          </>
         )}
         <RequestButton
           className={styles.cadastrarBtn}

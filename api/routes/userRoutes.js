@@ -15,6 +15,9 @@ userRoutes.post("/register", userController.register);
 // Endpoint para buscar usuário atual (requer autenticação)
 userRoutes.get("/me", Auth.Authorization, userController.getCurrentUser);
 
+// Lista masters: permitir admin e master (precisa vir ANTES de '/:id')
+userRoutes.get('/masters/all', Auth.Authorization, Auth.RequireRole(['admin','master']), userController.listMasters);
+
 userRoutes.get('/:id', userController.getUserById);
 
 // Endpoint para atualizar foto do usuário
