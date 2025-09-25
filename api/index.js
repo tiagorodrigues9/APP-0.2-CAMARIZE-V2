@@ -18,6 +18,7 @@ import emailRoutes from './routes/emailRoutes.js';
 import testRoutes from './routes/testRoutes.js';
 import parametrosRoutes from './routes/parametrosRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import dietaRoutes from './routes/dietaRoutes.js';
 
 // Importar serviço de monitoramento
 import monitoringService from './services/monitoringService.js';
@@ -108,6 +109,7 @@ app.use('/email', emailRoutes);
 app.use('/test', testRoutes);
 app.use('/parametros', parametrosRoutes);
 app.use('/chat', chatRoutes);
+app.use('/dietas', dietaRoutes);
 import requestRoutes from './routes/requestRoutes.js';
 import { BlockMembersWrite } from './middleware/Auth.js';
 // Bloqueio global de escrita para membros (exceto /requests)

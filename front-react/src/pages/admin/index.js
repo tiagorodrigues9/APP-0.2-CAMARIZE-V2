@@ -61,6 +61,10 @@ export default function AdminPanel() {
   const [expandedFazenda, setExpandedFazenda] = useState({}); // id -> bool
   const [expandedCativeiro, setExpandedCativeiro] = useState({}); // id -> bool
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // Dietas por cativeiro (cache simples)
+  const [cativeiroDieta, setCativeiroDieta] = useState({}); // id -> { descricao }
+  const [newDietaForm, setNewDietaForm] = useState({ descricao: '', quantidade: '' });
+  const isMaster = (user?.role || (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')?.role) : '')) === 'master';
   const [newCativeiro, setNewCativeiro] = useState({
     fazendaId: '',
     nome: '',
@@ -278,6 +282,40 @@ export default function AdminPanel() {
       const sensores = raw.map(item => item?.id_sensor || item).filter(Boolean);
       setCativeiros(prev => prev.map(c => c._id === cativeiroId ? { ...c, sensores } : c));
     } catch (e) {}
+  };
+
+  const loadDietaAtual = async (cativeiroId) => {
+    try {
+      const res = await axios.get(`${apiUrl}/dietas/atual/${cativeiroId}`);
+      if (res?.data) {
+        setCativeiroDieta(prev => ({ ...prev, [cativeiroId]: res.data }));
+      }
+    } catch (e) {
+      setCativeiroDieta(prev => ({ ...prev, [cativeiroId]: null }));
+    }
+  };
+
+  const upsertDietaForCativeiro = async (cativeiroId) => {
+    try {
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const atual = cativeiroDieta[cativeiroId];
+      if (atual && atual.dietaId) {
+        await axios.put(`${apiUrl}/dietas/${atual.dietaId}`, { descricao: newDietaForm.descricao, quantidade: newDietaForm.quantidade }, { headers });
+      } else {
+        const d = await axios.post(`${apiUrl}/dietas`, { descricao: newDietaForm.descricao, quantidade: newDietaForm.quantidade }, { headers });
+        const dietaId = d?.data?._id;
+        if (!dietaId) throw new Error('Falha ao criar dieta');
+        await axios.post(`${apiUrl}/dietas/assign/${cativeiroId}`, { dietaId, ativo: true }, { headers });
+      }
+      // Recarrega dieta atual
+      await loadDietaAtual(cativeiroId);
+      // Limpa form
+      setNewDietaForm({ descricao: '', quantidade: '' });
+      alert('Dieta atualizada com sucesso.');
+    } catch (e) {
+      alert('Erro ao criar/atribuir dieta: ' + (e?.response?.data?.error || e.message));
+    }
   };
 
   const getActionLabel = (action) => {
@@ -505,7 +543,8 @@ export default function AdminPanel() {
         data_instalacao: newCativeiro.data_instalacao,
         temp_media_diaria: newCativeiro.temp_media_diaria,
         ph_medio_diario: newCativeiro.ph_medio_diario,
-        amonia_media_diaria: newCativeiro.amonia_media_diaria
+        amonia_media_diaria: newCativeiro.amonia_media_diaria,
+        dieta_texto: newDietaForm.descricao || undefined
       };
 
       await axios.post(`${apiUrl}/requests`, {
@@ -725,8 +764,13 @@ export default function AdminPanel() {
                         onClick={() => {
                           const willExpand = !expandedCativeiro[cativeiro._id];
                           setExpandedCativeiro(prev => ({ ...prev, [cativeiro._id]: willExpand }));
-                          if (willExpand && !(Array.isArray(cativeiro.sensores) && cativeiro.sensores.length)) {
-                            loadSensorsForCativeiro(cativeiro._id);
+                          if (willExpand) {
+                            if (!(Array.isArray(cativeiro.sensores) && cativeiro.sensores.length)) {
+                              loadSensorsForCativeiro(cativeiro._id);
+                            }
+                            if (!cativeiroDieta[cativeiro._id]) {
+                              loadDietaAtual(cativeiro._id);
+                            }
                           }
                         }}
                         style={{ padding: 8, cursor: 'pointer', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
@@ -763,6 +807,32 @@ export default function AdminPanel() {
                           <div style={{ marginBottom: 8 }}>
                             <strong>Data de Instalação:</strong> {new Date(cativeiro.data_instalacao).toLocaleDateString()}
                           </div>
+                          <div style={{ marginBottom: 8 }}>
+                            <strong>Dieta atual:</strong>
+                            <div style={{ marginTop: 4, padding: 8, border: '1px dashed #e5e7eb', borderRadius: 6, background: '#fafafa' }}>
+                              {cativeiroDieta[cativeiro._id] === undefined && (
+                                <span style={{ color: '#6b7280' }}>Carregando...</span>
+                              )}
+                              {cativeiroDieta[cativeiro._id] === null && (
+                                <span style={{ color: '#6b7280' }}>Nenhuma dieta ativa.</span>
+                              )}
+                              {cativeiroDieta[cativeiro._id] && (
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                                  <div><b>Descrição:</b> {cativeiroDieta[cativeiro._id].descricao || '—'}</div>
+                                  <div><b>Qtd (g):</b> {typeof cativeiroDieta[cativeiro._id].quantidade !== 'undefined' ? cativeiroDieta[cativeiro._id].quantidade : '—'}</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ marginBottom: 8 }}>
+                            <strong>Atualizar Dieta</strong>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <input value={newDietaForm.descricao} onChange={(e) => setNewDietaForm(f => ({ ...f, descricao: e.target.value }))} placeholder="Descrição" style={{ flex: 1, minWidth: 220, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6 }} />
+                              <input type="number" step="0.01" value={newDietaForm.quantidade} onChange={(e) => setNewDietaForm(f => ({ ...f, quantidade: e.target.value }))} placeholder="Quantidade (g)" style={{ width: 160, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6 }} />
+                              <button onClick={() => upsertDietaForCativeiro(cativeiro._id)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}>Atualizar</button>
+                            </div>
+                          </div>
+                          {/* Dieta removida do card: administrar via Dietas + DietasxCativeiros */}
                           <div style={{ marginBottom: 8 }}>
                             <strong>Condições Ideais:</strong>
                             <div style={{ marginTop: 4, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1103,6 +1173,8 @@ export default function AdminPanel() {
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px' }}
                 />
               </div>
+
+              {/* Dieta removida da criação de cativeiro: usar /dietas e /dietas/assign */}
 
               <div>
                 <label style={{ display: 'block', marginBottom: 6, fontSize: '14px', fontWeight: '500', color: '#374151' }}>Tipo de camarão:</label>

@@ -8,7 +8,7 @@ const DietasSchema = new mongoose.Schema({
   },
   horaAlimentacao: {
     type: String, // Exemplo: "08:00"
-    required: true,
+    required: false,
   },
   quantidade: {
     type: Number,

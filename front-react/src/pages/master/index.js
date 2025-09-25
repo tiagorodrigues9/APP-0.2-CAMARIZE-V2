@@ -13,11 +13,18 @@ export default function MasterPanel() {
   const [cativeiros, setCativeiros] = useState([]);
   const [tiposCamarao, setTiposCamarao] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dietas, setDietas] = useState([]);
+  const [dietaForm, setDietaForm] = useState({ descricao: '', quantidade: '' });
+  const [editingDietaId, setEditingDietaId] = useState('');
+  const [editingDieta, setEditingDieta] = useState({ descricao: '', quantidade: '' });
+  const [cativeiroDieta, setCativeiroDieta] = useState({}); // cId -> { dietaId, descricao, quantidade }
+  const [dietaEditsByCat, setDietaEditsByCat] = useState({}); // cId -> { descricao, quantidade }
+  const [assignForm, setAssignForm] = useState({ cativeiroId: '', dietaId: '' });
   const [error, setError] = useState('');
   const [requesterFilter, setRequesterFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [actionFilter, setActionFilter] = useState('');
-  const [tab, setTab] = useState('requests'); // requests | solicitacoes | usuarios | cativeiros | sensores
+  const [tab, setTab] = useState('requests'); // requests | solicitacoes | usuarios | cativeiros | sensores | dietas
   const [chatConversations, setChatConversations] = useState([]);
   const [chatSelectedId, setChatSelectedId] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
@@ -64,7 +71,10 @@ export default function MasterPanel() {
     temp_media_diaria: '',
     ph_medio_diario: '',
     amonia_media_diaria: '',
-    fotoFile: null
+    fotoFile: null,
+    dietaAtivar: false,
+    dietaDescricao: '',
+    dietaQuantidade: ''
   });
 
   // Modal de edição de cativeiro
@@ -89,13 +99,14 @@ export default function MasterPanel() {
       setLoading(true);
       const token = getToken();
       const headers = { Authorization: `Bearer ${token}` };
-      const [reqs, us, fzs, cats, tipos, sens] = await Promise.all([
+      const [reqs, us, fzs, cats, tipos, sens, dts] = await Promise.all([
         axios.get(`${apiUrl}/requests`, { headers }), // Requests pendentes para aprovar/recusar
         axios.get(`${apiUrl}/users`, { headers }),
         axios.get(`${apiUrl}/fazendas`, { headers }),
         axios.get(`${apiUrl}/cativeiros`, { headers }),
         axios.get(`${apiUrl}/camaroes`, { headers }),
         axios.get(`${apiUrl}/sensores`, { headers }),
+        axios.get(`${apiUrl}/dietas`, { headers }).catch(() => ({ data: [] })),
       ]);
       setItems(reqs.data);
       setUsers(us.data);
@@ -103,6 +114,7 @@ export default function MasterPanel() {
       setCativeiros(cats.data);
       setTiposCamarao(tipos.data);
       setSensores(sens.data);
+      setDietas(dts.data || []);
     } catch (e) {
       setError('Erro ao carregar dados');
     } finally {
@@ -457,6 +469,39 @@ export default function MasterPanel() {
     }
   };
 
+  const loadDietaAtual = async (cativeiroId) => {
+    try {
+      const res = await axios.get(`${apiUrl}/dietas/atual/${cativeiroId}`);
+      const data = res?.data || null;
+      setCativeiroDieta(prev => ({ ...prev, [cativeiroId]: data }));
+      if (data) {
+        setDietaEditsByCat(prev => ({ ...prev, [cativeiroId]: { descricao: data.descricao || '', quantidade: data.quantidade || '' } }));
+      }
+    } catch {
+      setCativeiroDieta(prev => ({ ...prev, [cativeiroId]: null }));
+    }
+  };
+
+  const upsertDietaForCativeiro = async (cativeiroId) => {
+    try {
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const atual = cativeiroDieta[cativeiroId];
+      const edits = dietaEditsByCat[cativeiroId] || { descricao: '', quantidade: '' };
+      if (atual && atual.dietaId) {
+        await axios.put(`${apiUrl}/dietas/${atual.dietaId}`, { descricao: edits.descricao, quantidade: edits.quantidade }, { headers });
+      } else {
+        const d = await axios.post(`${apiUrl}/dietas`, { descricao: edits.descricao, quantidade: edits.quantidade }, { headers });
+        const dietaId = d?.data?._id;
+        await axios.post(`${apiUrl}/dietas/assign/${cativeiroId}`, { dietaId, ativo: true }, { headers });
+      }
+      await loadDietaAtual(cativeiroId);
+      alert('Dieta atualizada.');
+    } catch (e) {
+      alert('Erro ao atualizar dieta: ' + (e?.response?.data?.error || e.message));
+    }
+  };
+
   const getFazendaName = (id) => {
     const idStr = String(id);
     const f = fazendas.find(fz => String(fz._id) === idStr);
@@ -534,6 +579,10 @@ export default function MasterPanel() {
       if (createForm.ph_medio_diario) form.append('ph_medio_diario', createForm.ph_medio_diario);
       if (createForm.amonia_media_diaria) form.append('amonia_media_diaria', createForm.amonia_media_diaria);
       if (createForm.fotoFile) form.append('foto_cativeiro', createForm.fotoFile);
+      if (createForm.dietaAtivar && (createForm.dietaDescricao || createForm.dietaQuantidade)) {
+        // master pode mandar dieta_texto para criar e atribuir imediatamente
+        form.append('dieta_texto', `${createForm.dietaDescricao} (${createForm.dietaQuantidade} g)`);
+      }
 
       await axios.post(`${apiUrl}/cativeiros`, form, { headers: { Authorization: `Bearer ${token}` } });
       setShowCreateModal(false);
@@ -577,6 +626,7 @@ export default function MasterPanel() {
         <button onClick={() => setTab('usuarios')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='usuarios'?'#eef':'#fff' }}>Usuários</button>
         <button onClick={() => setTab('cativeiros')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='cativeiros'?'#eef':'#fff' }}>Cativeiros</button>
         <button onClick={() => setTab('sensores')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='sensores'?'#eef':'#fff' }}>Sensores</button>
+        <button onClick={() => setTab('dietas')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='dietas'?'#eef':'#fff' }}>Dietas</button>
         <button onClick={() => setTab('chat')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='chat'?'#eef':'#fff' }}>Chat</button>
       </div>
 
@@ -878,8 +928,13 @@ export default function MasterPanel() {
                         onClick={() => {
                           const will = !expandedCativeiro[c._id];
                           setExpandedCativeiro(prev => ({ ...prev, [c._id]: will }));
-                          if (will && !(Array.isArray(c.sensores) && c.sensores.length)) {
-                            loadSensorsForCativeiro(c._id);
+                          if (will) {
+                            if (!(Array.isArray(c.sensores) && c.sensores.length)) {
+                              loadSensorsForCativeiro(c._id);
+                            }
+                            if (!cativeiroDieta[c._id]) {
+                              loadDietaAtual(c._id);
+                            }
                           }
                         }}
                         style={{ padding: 8, cursor: 'pointer', background: '#fff', display: 'flex', justifyContent: 'space-between' }}
@@ -959,6 +1014,36 @@ export default function MasterPanel() {
                               <div style={{ color: '#6b7280' }}>Nenhum sensor relacionado</div>
                             )}
                           </div>
+                          <div style={{ marginTop: 12 }}>
+                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Dieta</div>
+                            <div style={{ marginBottom: 6, padding: 8, border: '1px dashed #e5e7eb', borderRadius: 6, background: '#fafafa' }}>
+                              {cativeiroDieta[c._id] === undefined && <span style={{ color: '#6b7280' }}>Carregando...</span>}
+                              {cativeiroDieta[c._id] === null && <span style={{ color: '#6b7280' }}>Nenhuma dieta ativa.</span>}
+                              {cativeiroDieta[c._id] && (
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                                  <div><b>Descrição:</b> {cativeiroDieta[c._id].descricao || '—'}</div>
+                                  <div><b>Qtd (g):</b> {typeof cativeiroDieta[c._id].quantidade !== 'undefined' ? cativeiroDieta[c._id].quantidade : '—'}</div>
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                              <input
+                                value={(dietaEditsByCat[c._id]?.descricao) || ''}
+                                onChange={(e) => setDietaEditsByCat(prev => ({ ...prev, [c._id]: { ...(prev[c._id] || {}), descricao: e.target.value } }))}
+                                placeholder="Descrição"
+                                style={{ flex: 1, minWidth: 220, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6 }}
+                              />
+                              <input
+                                type="number" step="0.01"
+                                value={(dietaEditsByCat[c._id]?.quantidade) || ''}
+                                onChange={(e) => setDietaEditsByCat(prev => ({ ...prev, [c._id]: { ...(prev[c._id] || {}), quantidade: e.target.value } }))}
+                                placeholder="Quantidade (g)"
+                                style={{ width: 160, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6 }}
+                              />
+                              <button onClick={() => upsertDietaForCativeiro(c._id)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}>Atualizar</button>
+                              <button onClick={() => loadDietaAtual(c._id)} style={{ background: '#6b7280', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}>Recarregar</button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -996,6 +1081,107 @@ export default function MasterPanel() {
               </div>
             </div>
           ))}
+        </section>
+      )}
+
+      {tab === 'dietas' && (
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3>Gerenciar Dietas</h3>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={dietaForm.descricao} onChange={(e) => setDietaForm(f => ({ ...f, descricao: e.target.value }))} placeholder="Descrição" style={{ padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6, minWidth: 240 }} />
+              <input type="number" step="0.01" value={dietaForm.quantidade} onChange={(e) => setDietaForm(f => ({ ...f, quantidade: e.target.value }))} placeholder="Quantidade (g)" style={{ width: 160, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6 }} />
+              <button onClick={async () => {
+                try {
+                  const token = getToken();
+                  const headers = { Authorization: `Bearer ${token}` };
+                  await axios.post(`${apiUrl}/dietas`, { descricao: dietaForm.descricao, quantidade: dietaForm.quantidade }, { headers });
+                  setDietaForm({ descricao: '', quantidade: '' });
+                  await load();
+                } catch (e) {
+                  alert('Erro ao salvar dieta: ' + (e?.response?.data?.error || e.message));
+                }
+              }} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}>Criar</button>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <h4>Lista de Dietas</h4>
+              {dietas.length === 0 && <div style={{ color: '#888' }}>Nenhuma dieta cadastrada.</div>}
+              {dietas.map(d => (
+                <div key={d._id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                  {editingDietaId === d._id ? (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
+                        <input value={editingDieta.descricao} onChange={(e) => setEditingDieta(v => ({ ...v, descricao: e.target.value }))} placeholder="Descrição" style={{ flex: 1, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6 }} />
+                        <input type="number" step="0.01" value={editingDieta.quantidade} onChange={(e) => setEditingDieta(v => ({ ...v, quantidade: e.target.value }))} placeholder="Quantidade (g)" style={{ width: 160, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6 }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={async () => {
+                          try {
+                            const token = getToken();
+                            const headers = { Authorization: `Bearer ${token}` };
+                            await axios.put(`${apiUrl}/dietas/${editingDietaId}`, { descricao: editingDieta.descricao, quantidade: editingDieta.quantidade }, { headers });
+                            setEditingDietaId('');
+                            setEditingDieta({ descricao: '', quantidade: '' });
+                            await load();
+                          } catch (e) {
+                            alert('Erro ao salvar edição: ' + (e?.response?.data?.error || e.message));
+                          }
+                        }} style={{ border: 'none', background: '#3b82f6', color: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Salvar</button>
+                        <button onClick={() => { setEditingDietaId(''); setEditingDieta({ descricao: '', quantidade: '' }); }} style={{ border: '1px solid #ddd', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div><b>{d.descricao || '—'}</b> — {typeof d.quantidade !== 'undefined' ? `${d.quantidade} g` : '—'}</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => { setEditingDietaId(d._id); setEditingDieta({ descricao: d.descricao || '', quantidade: d.quantidade || '' }); }} style={{ border: '1px solid #ddd', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Editar</button>
+                        <button onClick={async () => {
+                      try {
+                        const token = getToken();
+                        const headers = { Authorization: `Bearer ${token}` };
+                        await axios.delete(`${apiUrl}/dietas/${d._id}`, { headers });
+                        await load();
+                      } catch (e) {
+                        alert('Erro ao excluir: ' + (e?.response?.data?.error || e.message));
+                      }
+                        }} style={{ border: '1px solid #fca5a5', background: '#fee2e2', color: '#991b1b', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Excluir</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div>
+              <h4>Atribuir Dieta a Cativeiro</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                <select value={assignForm.cativeiroId} onChange={(e) => setAssignForm(f => ({ ...f, cativeiroId: e.target.value }))} style={{ padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+                  <option value="">Selecione cativeiro</option>
+                  {cativeiros.map(c => (
+                    <option key={c._id} value={c._id}>{c.nome || c._id}</option>
+                  ))}
+                </select>
+                <select value={assignForm.dietaId} onChange={(e) => setAssignForm(f => ({ ...f, dietaId: e.target.value }))} style={{ padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+                  <option value="">Selecione dieta</option>
+                  {dietas.map(d => (
+                    <option key={d._id} value={d._id}>{d.descricao || d._id}</option>
+                  ))}
+                </select>
+                <button onClick={async () => {
+                  try {
+                    const token = getToken();
+                    const headers = { Authorization: `Bearer ${token}` };
+                    if (!assignForm.cativeiroId || !assignForm.dietaId) { alert('Selecione cativeiro e dieta.'); return; }
+                    await axios.post(`${apiUrl}/dietas/assign/${assignForm.cativeiroId}`, { dietaId: assignForm.dietaId, ativo: true }, { headers });
+                    alert('Dieta atribuída!');
+                  } catch (e) {
+                    alert('Erro ao atribuir: ' + (e?.response?.data?.error || e.message));
+                  }
+                }} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}>Atribuir</button>
+              </div>
+            </div>
+          </div>
         </section>
       )}
 
@@ -1193,6 +1379,19 @@ export default function MasterPanel() {
           <div style={{ gridColumn: 'span 2' }}>
             <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Imagem do cativeiro</label>
             <input type="file" accept="image/*" onChange={(e) => setCreateForm(f => ({ ...f, fotoFile: e.target.files?.[0] || null }))} style={{ width: '100%' }} />
+          </div>
+          <div style={{ gridColumn: 'span 2', borderTop: '1px solid #eee', paddingTop: 8 }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Dieta (opcional)</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={createForm.dietaAtivar} onChange={(e) => setCreateForm(f => ({ ...f, dietaAtivar: e.target.checked }))} />
+                Ativar dieta na criação
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', opacity: createForm.dietaAtivar ? 1 : 0.6 }}>
+              <input disabled={!createForm.dietaAtivar} value={createForm.dietaDescricao} onChange={(e) => setCreateForm(f => ({ ...f, dietaDescricao: e.target.value }))} placeholder="Descrição" style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+              <input disabled={!createForm.dietaAtivar} type="number" step="0.01" value={createForm.dietaQuantidade} onChange={(e) => setCreateForm(f => ({ ...f, dietaQuantidade: e.target.value }))} placeholder="Quantidade (g)" style={{ width: 160, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+            </div>
           </div>
           <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
             <button onClick={() => setShowCreateModal(false)} style={{ border: '1px solid #e5e7eb', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Cancelar</button>

@@ -5,6 +5,8 @@ import FazendasxCativeiros from "../models/FazendasxCativeiros.js";
 import SensoresxCativeiros from "../models/SensoresxCativeiros.js";
 import Cativeiros from "../models/Cativeiros.js";
 import ParametrosAtuais from "../models/Parametros_atuais.js";
+import Dietas from "../models/Dietas.js";
+import DietasxCativeiros from "../models/DietasxCativeiros.js";
 
 const createCativeiro = async (req, res) => {
   try {
@@ -44,6 +46,9 @@ const createCativeiro = async (req, res) => {
       data.user = req.loggedUser.id;
     }
     
+    // dieta (string) pode vir do body
+    // dieta como texto pode vir no request (dieta_texto) apenas para conveniência de criação
+
     const result = await cativeiroService.Create(data);
     if (!result) {
       return res.status(500).json({ error: "Falha ao salvar no banco." });
@@ -114,6 +119,18 @@ const createCativeiro = async (req, res) => {
       console.log('⚠️  Nenhum sensor fornecido no cadastro');
     }
     
+    // Se vier dieta (descrição), registra também em Dietas e relaciona
+    // dieta inicial: somente masters podem criar/atribuir na criação
+    try {
+      const role = req.loggedUser?.role;
+      if (role === 'master' && req.body.dieta_texto && String(req.body.dieta_texto).trim()) {
+        const dietaDoc = await Dietas.create({ descricao: String(req.body.dieta_texto).trim() });
+        await DietasxCativeiros.create({ cativeiro: result._id, dieta: dietaDoc._id, ativo: true });
+      }
+    } catch (e) {
+      console.error('Erro ao criar/atribuir dieta_texto na criação:', e.message);
+    }
+
     res.status(201).json({ 
       message: "Cativeiro criado com sucesso!",
       cativeiroId: result._id,
@@ -241,48 +258,48 @@ const updateCativeiro = async (req, res) => {
       bodyKeys: Object.keys(req.body)
     });
     
-    // Sempre remove relações anteriores primeiro
-    await SensoresxCativeiros.deleteMany({ id_cativeiro: id });
-    console.log(`🗑️  Relações anteriores removidas para cativeiro ${id}`);
-    
-    // Processa os sensores fornecidos
-    let sensoresParaProcessar = [];
-    
-    // Verifica se sensorIds é um array (JSON) ou string única (FormData)
-    if (req.body.sensorIds) {
-      if (Array.isArray(req.body.sensorIds)) {
-        // Dados enviados como JSON
-        sensoresParaProcessar = req.body.sensorIds;
-        console.log('📦 Processando sensorIds como array JSON:', sensoresParaProcessar);
-      } else if (typeof req.body.sensorIds === 'string') {
-        // Dados enviados como FormData - pode ser string única ou múltiplas
-        sensoresParaProcessar = [req.body.sensorIds];
-        console.log('📦 Processando sensorIds como string FormData:', sensoresParaProcessar);
+    // Só mexe nas relações de sensores se houver payload relacionado a sensores
+    const hasSensorPayload = typeof req.body.sensorIds !== 'undefined' || typeof req.body.sensorId !== 'undefined';
+    if (hasSensorPayload) {
+      // Remove relações anteriores para recriar
+      await SensoresxCativeiros.deleteMany({ id_cativeiro: id });
+      console.log(`🗑️  Relações anteriores removidas para cativeiro ${id}`);
+
+      // Processa os sensores fornecidos
+      let sensoresParaProcessar = [];
+
+      // Verifica se sensorIds é um array (JSON) ou string única (FormData)
+      if (req.body.sensorIds) {
+        if (Array.isArray(req.body.sensorIds)) {
+          // Dados enviados como JSON
+          sensoresParaProcessar = req.body.sensorIds;
+          console.log('📦 Processando sensorIds como array JSON:', sensoresParaProcessar);
+        } else if (typeof req.body.sensorIds === 'string') {
+          // Dados enviados como FormData - pode ser string única ou múltiplas
+          sensoresParaProcessar = [req.body.sensorIds];
+          console.log('📦 Processando sensorIds como string FormData:', sensoresParaProcessar);
+        }
       }
-    }
-    
-         if (sensoresParaProcessar.length > 0) {
-       try {
-         // Filtra apenas sensores válidos e remove duplicatas
-         const sensoresValidos = [...new Set(sensoresParaProcessar.filter(sensorId => sensorId && sensorId !== ""))];
-         
-         if (sensoresValidos.length > 0) {
-           // Cria novas relações para todos os sensores válidos
-           const relacoes = [];
-           for (const sensorId of sensoresValidos) {
-             const relacao = await SensoresxCativeiros.create({
-               id_sensor: sensorId,
-               id_cativeiro: id
-             });
-             relacoes.push(relacao);
-             console.log(`✅ Relação sensor-cativeiro atualizada: Sensor ${sensorId} -> Cativeiro ${id}`);
-           }
-           console.log(`📝 Total de relações atualizadas: ${relacoes.length}`);
-         } else {
-           console.log('⚠️  Nenhum sensor válido fornecido na edição');
-         }
-      } catch (error) {
-        console.error('❌ Erro ao atualizar relações sensor-cativeiro:', error.message);
+
+      if (sensoresParaProcessar.length > 0) {
+        // Filtra apenas sensores válidos e remove duplicatas
+        const sensoresValidos = [...new Set(sensoresParaProcessar.filter(sensorId => sensorId && sensorId !== ""))];
+
+        if (sensoresValidos.length > 0) {
+          // Cria novas relações para todos os sensores válidos
+          const relacoes = [];
+          for (const sensorId of sensoresValidos) {
+            const relacao = await SensoresxCativeiros.create({
+              id_sensor: sensorId,
+              id_cativeiro: id
+            });
+            relacoes.push(relacao);
+            console.log(`✅ Relação sensor-cativeiro atualizada: Sensor ${sensorId} -> Cativeiro ${id}`);
+          }
+          console.log(`📝 Total de relações atualizadas: ${relacoes.length}`);
+        } else {
+          console.log('⚠️  Nenhum sensor válido fornecido na edição');
+        }
       }
     } else if (req.body.sensorId && req.body.sensorId !== "") {
       // Fallback para compatibilidade com sensorId único
@@ -296,8 +313,11 @@ const updateCativeiro = async (req, res) => {
         console.error('❌ Erro ao atualizar relação sensor-cativeiro:', error.message);
       }
     } else {
-      console.log('⚠️  Nenhum sensor fornecido na edição - todas as relações foram removidas');
+      console.log('ℹ️  Edição sem payload de sensores - mantendo vínculos existentes.');
     }
+
+    // Se alterar dieta (descrição), cria nova Dieta e marca relação ativa
+    // dieta removida do fluxo de patch do cativeiro; usar /dietas/assign/:cativeiroId
 
     res.status(200).json({ 
       message: 'Cativeiro atualizado com sucesso!', 
@@ -309,6 +329,7 @@ const updateCativeiro = async (req, res) => {
     res.status(500).json({ error: 'Erro interno do servidor.' });
   }
 };
+
 
 const deleteCativeiro = async (req, res) => {
   try {
