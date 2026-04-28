@@ -90,8 +90,7 @@ const emailSettingsSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Índices para melhor performance
-emailSettingsSchema.index({ userId: 1 });
+// Índice para busca por endereço de e-mail (userId já tem índice via unique:true no campo)
 emailSettingsSchema.index({ emailAddress: 1 });
 
 // Método para verificar se deve enviar email baseado na severidade

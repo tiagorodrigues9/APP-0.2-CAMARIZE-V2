@@ -17,10 +17,12 @@ const TiposSensorSchema = new mongoose.Schema({
 
 const TiposSensor = mongoose.model("TiposSensor", TiposSensorSchema);
 
-// Mock: cria um tipo de sensor se não existir nenhum
-TiposSensor.countDocuments().then(count => {
+// Seed: cria um tipo de sensor padrão se não existir nenhum.
+// Aguarda a conexão estar aberta para não bloquear o boot quando o banco está indisponível.
+mongoose.connection.once('open', async () => {
+  const count = await TiposSensor.countDocuments();
   if (count === 0) {
-    TiposSensor.create({ descricao: 'Temperatura' });
+    await TiposSensor.create({ descricao: 'Temperatura' });
   }
 });
 
