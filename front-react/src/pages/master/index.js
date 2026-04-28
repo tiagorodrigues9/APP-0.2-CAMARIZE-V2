@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
 import Modal from '../../components/Modal';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
+import { FaUserCircle } from 'react-icons/fa';
 
 export default function MasterPanel() {
   const { isAuthenticated, loading: authLoading, user } = useAuth();
@@ -61,6 +63,10 @@ export default function MasterPanel() {
   const [expandedCativeiro, setExpandedCativeiro] = useState({}); // id -> bool
   const [cativeirosByFazenda, setCativeirosByFazenda] = useState({}); // fazendaId -> [cativeiros]
   const [loadingFazenda, setLoadingFazenda] = useState({}); // fazendaId -> bool
+
+  // Modal de edição de fazenda
+  const [showEditFazendaModal, setShowEditFazendaModal] = useState(false);
+  const [editFazendaForm, setEditFazendaForm] = useState({ id: '', nome: '', rua: '', bairro: '', cidade: '', numero: '' });
 
   // Modal de criação de cativeiro
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -693,6 +699,49 @@ export default function MasterPanel() {
     return f.nome && f.codigo ? `${f.nome} - ${f.codigo}` : (f.nome || f.codigo || id);
   };
 
+  const getFazendaAdmins = (id) => {
+    const f = fazendas.find(fz => String(fz._id) === String(id));
+    return f?.admins || [];
+  };
+
+  const openEditFazenda = (fazenda) => {
+    setEditFazendaForm({
+      id: String(fazenda._id),
+      nome: fazenda.nome || '',
+      rua: fazenda.rua || '',
+      bairro: fazenda.bairro || '',
+      cidade: fazenda.cidade || '',
+      numero: String(fazenda.numero || ''),
+    });
+    setShowEditFazendaModal(true);
+  };
+
+  const handleUpdateFazenda = async () => {
+    try {
+      const token = getToken();
+      await axios.patch(
+        `${apiUrl}/fazendas/${editFazendaForm.id}`,
+        { nome: editFazendaForm.nome, rua: editFazendaForm.rua, bairro: editFazendaForm.bairro, cidade: editFazendaForm.cidade, numero: editFazendaForm.numero },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setShowEditFazendaModal(false);
+      await load();
+    } catch (e) {
+      alert('Erro ao atualizar fazenda: ' + (e?.response?.data?.error || e.message));
+    }
+  };
+
+  const handleDeleteFazenda = async (id, nome) => {
+    if (!window.confirm(`Excluir a fazenda "${nome}"? Esta ação removerá todos os vínculos de usuários com ela.`)) return;
+    try {
+      const token = getToken();
+      await axios.delete(`${apiUrl}/fazendas/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await load();
+    } catch (e) {
+      alert('Erro ao excluir fazenda: ' + (e?.response?.data?.error || e.message));
+    }
+  };
+
   const updateCativeiroNome = async (id, nome) => {
     const token = getToken();
     await axios.patch(`${apiUrl}/cativeiros/${id}`, { nome }, { headers: { Authorization: `Bearer ${token}` } });
@@ -790,19 +839,27 @@ export default function MasterPanel() {
     <div style={{ padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2>Painel Master</h2>
-        <button
-          onClick={() => {
-            try {
-              localStorage.removeItem('token');
-              localStorage.removeItem('usuarioCamarize');
-            } catch {}
-            window.location.href = '/login';
-          }}
-          style={{ border: '1px solid #eee', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}
-          title="Sair"
-        >
-          Sair
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {user?.nome && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem', color: '#666' }}>
+              <FaUserCircle size={18} color="#a3c7f7" />
+              Olá, {user.nome}
+            </span>
+          )}
+          <button
+            onClick={() => {
+              try {
+                localStorage.removeItem('token');
+                localStorage.removeItem('usuarioCamarize');
+              } catch {}
+              window.location.href = '/login';
+            }}
+            style={{ border: '1px solid #eee', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}
+            title="Sair"
+          >
+            Sair
+          </button>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
         <button onClick={() => setTab('requests')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='requests'?'#eef':'#fff' }}>Requests</button>
@@ -1071,9 +1128,9 @@ export default function MasterPanel() {
       {tab === 'cativeiros' && (
         <section>
           <h3>Fazendas e Cativeiros</h3>
-          {/* Criar cativeiro (abre modal) */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '12px 0' }}>
-            <button onClick={() => openCreateModal()} style={{ border: '1px solid #eee', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Criar cativeiro</button>
+            <button onClick={() => openCreateModal()} style={{ border: '1px solid #eee', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: '0.95rem' }}>Criar cativeiro</button>
+            <Link href="/register-fazenda" style={{ border: '1px solid #a3c7f7', background: '#eff6ff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', textDecoration: 'none', color: '#1d4ed8', fontSize: '0.95rem', display: 'inline-block' }}>+ Nova fazenda</Link>
           </div>
           {(() => {
             const grouped = groupedByFazenda();
@@ -1091,7 +1148,10 @@ export default function MasterPanel() {
                 </div>
               );
             }
-            return Object.entries(grouped).map(([fzId, cats]) => (
+            return Object.entries(grouped).map(([fzId, cats]) => {
+            const fzObj = fazendas.find(f => String(f._id) === fzId);
+            const fzAdmins = getFazendaAdmins(fzId);
+            return (
             <div key={fzId} style={{ border: '1px solid #eee', borderRadius: 8, marginBottom: 10 }}>
               <div
                 onClick={() => {
@@ -1099,10 +1159,26 @@ export default function MasterPanel() {
                   setExpandedFazenda(prev => ({ ...prev, [fzId]: willExpand }));
                   if (willExpand) ensureCativeirosForFazenda(fzId);
                 }}
-                style={{ padding: 10, cursor: 'pointer', background: '#f9fafb', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}
+                style={{ padding: '8px 10px', cursor: 'pointer', background: '#f9fafb', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
-                <span>{getFazendaName(fzId)}</span>
-                <span>{expandedFazenda[fzId] ? '▲' : '▼'}</span>
+                <div>
+                  <span style={{ fontWeight: 600 }}>{getFazendaName(fzId)}</span>
+                  {fzAdmins.length > 0
+                    ? <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 10 }}>Admin: {fzAdmins.map(a => a.nome).join(', ')}</span>
+                    : <span style={{ fontSize: '0.8rem', color: '#d1d5db', marginLeft: 10 }}>Sem admin</span>
+                  }
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); openEditFazenda(fzObj); }}
+                    style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}
+                  >Editar</button>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleDeleteFazenda(fzId, fzObj?.nome); }}
+                    style={{ border: '1px solid #fca5a5', background: '#fee2e2', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem', color: '#dc2626' }}
+                  >Excluir</button>
+                  <span style={{ marginLeft: 4 }}>{expandedFazenda[fzId] ? '▲' : '▼'}</span>
+                </div>
               </div>
               {expandedFazenda[fzId] && (
                 <div style={{ padding: 10 }}>
@@ -1236,7 +1312,8 @@ export default function MasterPanel() {
                 </div>
               )}
             </div>
-            ));
+            );
+          });
           })()}
         </section>
       )}
@@ -1575,6 +1652,41 @@ export default function MasterPanel() {
           </div>
         </div>
       )}
+      {/* Modal de edição de fazenda */}
+      {showEditFazendaModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 8, width: '95%', maxWidth: 480 }}>
+            <h3 style={{ marginTop: 0 }}>Editar fazenda</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Nome</label>
+                <input value={editFazendaForm.nome} onChange={e => setEditFazendaForm(f => ({ ...f, nome: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Rua</label>
+                <input value={editFazendaForm.rua} onChange={e => setEditFazendaForm(f => ({ ...f, rua: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Bairro</label>
+                <input value={editFazendaForm.bairro} onChange={e => setEditFazendaForm(f => ({ ...f, bairro: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Cidade</label>
+                <input value={editFazendaForm.cidade} onChange={e => setEditFazendaForm(f => ({ ...f, cidade: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Número</label>
+                <input value={editFazendaForm.numero} onChange={e => setEditFazendaForm(f => ({ ...f, numero: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button onClick={() => setShowEditFazendaModal(false)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={handleUpdateFazenda} style={{ border: 'none', background: '#3b82f6', color: '#fff', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 600 }}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de criação de cativeiro */}
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Criar cativeiro">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
