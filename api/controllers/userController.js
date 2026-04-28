@@ -1,13 +1,17 @@
 import userService from "../services/userService.js";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import fazendaController from "./fazendaController.js";
 import Fazendas from "../models/Fazendas.js";
 import emailService from "../services/emailService.js";
 import requestService from "../services/requestService.js";
 import UsuariosxFazendas from "../models/UsuariosxFazendas.js";
 
-// JWTSecret
-const JWTSecret = process.env.JWT_SECRET || "apigamessecret";
+// JWTSecret — obrigatório no .env, sem fallback
+const JWTSecret = process.env.JWT_SECRET;
+if (!JWTSecret) {
+  throw new Error("JWT_SECRET não definido no .env. A API não pode iniciar sem ele.");
+}
 
 
 // No userController.js
@@ -99,46 +103,98 @@ const register = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     const { email, senha } = req.body;
-    // Log dos dados recebidos
-    console.log("Tentando login com:", email, senha);
-    // Se o e-mail não está vazio
-    if (email != undefined) {
-      // Busca o usuário no banco
-      const user = await userService.getOne(email);
-      // Log do usuário encontrado
-      console.log("Usuário encontrado:", user);
-      // Usuário encontrado
-      if (user != undefined) {
-        // Senha correta
-        if (user.senha == senha) {
-          // Gerando o token
-          jwt.sign(
-            { id: user._id, email: user.email },
-            JWTSecret,
-            { expiresIn: "48h" },
-            (error, token) => {
-              if (error) {
-                res.status(400).json({ error: "Erro ao gerar o token." }); // Bad request
-              } else {
-                res.status(200).json({ token: token });
-                
-              }
-            });
-          // Senha incorreta
-        } else {
-          res.status(401).json({ error: "Credenciais inválidas" }); // Unauthorized
-        }
-    // Usuário não encontrado
-      } else {
-        res.status(404).json({error: "Usuário não encontrado."}) //Not found
-      }
-      // E-mail inválido ou vazio
-    } else {
-        res.status(400).json({error: "O e-mail enviado é inválido."}) // Bad request
+
+    if (!email) {
+      return res.status(400).json({ error: "O e-mail enviado é inválido." });
     }
+
+    const user = await userService.getOne(email);
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    const senhaCorreta = await bcrypt.compare(senha, user.senha);
+    if (!senhaCorreta) {
+      return res.status(401).json({ error: "Credenciais inválidas" });
+    }
+
+    // Payload inclui role e tokenVersion para evitar queries extras no middleware
+    const payload = {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
+    };
+
+    jwt.sign(payload, JWTSecret, { expiresIn: "48h" }, (error, token) => {
+      if (error) {
+        return res.status(400).json({ error: "Erro ao gerar o token." });
+      }
+      res.status(200).json({ token });
+    });
   } catch (error) {
-    console.log(error);
-    res.sendStatus(500); // Erro interno do servidor
+    console.error("Erro no login:", error);
+    res.sendStatus(500);
+  }
+};
+
+// Logout — invalida todos os tokens ativos incrementando tokenVersion
+const logoutUser = async (req, res) => {
+  try {
+    await userService.incrementTokenVersion(req.loggedUser.id);
+    res.status(200).json({ message: "Logout realizado com sucesso." });
+  } catch (error) {
+    console.error("Erro no logout:", error);
+    res.status(500).json({ error: "Erro ao realizar logout." });
+  }
+};
+
+// Atualizar dados do usuário (nome, email, senha) — apenas admin e master
+const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome, email, senha } = req.body;
+
+    const user = await userService.getById(id);
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+
+    // Verificar duplicidade de email se foi alterado
+    if (email && email !== user.email) {
+      const existing = await userService.getOne(email);
+      if (existing) {
+        return res.status(400).json({ error: `O e-mail '${email}' já está em uso por outro usuário.` });
+      }
+    }
+
+    const fields = {};
+    if (nome) fields.nome = nome;
+    if (email) fields.email = email;
+    if (senha) fields.senha = senha;
+
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ error: "Nenhum campo válido informado para atualização." });
+    }
+
+    const updated = await userService.updateUser(id, fields);
+    const { senha: _, ...userWithoutPassword } = updated.toObject();
+    res.json({ message: "Usuário atualizado com sucesso!", user: userWithoutPassword });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Deletar usuário — apenas admin e master
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await userService.getById(id);
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+
+    await userService.deleteUser(id);
+    res.json({ message: "Usuário removido com sucesso!" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -609,20 +665,23 @@ const atualizarStatusFuncionario = async (req, res) => {
   }
 };
 
-export default { 
-  createUser, 
-  loginUser, 
-  JWTSecret, 
-  register, 
+export default {
+  createUser,
+  loginUser,
+  logoutUser,
+  JWTSecret,
+  register,
   registerFuncionario,
   registerProprietario,
   checkEmailExists,
   associarFuncionario,
-  getUserById, 
-  updateUserPhoto, 
-  getCurrentUser, 
-  listUsers, 
-  listMasters, 
+  getUserById,
+  updateUserPhoto,
+  updateUser,
+  deleteUser,
+  getCurrentUser,
+  listUsers,
+  listMasters,
   changeUserRole,
   getFuncionariosDaFazenda,
   atualizarStatusFuncionario

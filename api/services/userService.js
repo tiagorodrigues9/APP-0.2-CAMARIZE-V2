@@ -1,5 +1,8 @@
 import User from "../models/Users.js";
 import EmailSettings from "../models/EmailSettings.js";
+import bcrypt from "bcryptjs";
+
+const SALT_ROUNDS = 10;
 
 class userService {
   
@@ -7,11 +10,13 @@ class userService {
   async Create(nome, email, senha, foto_perfil, fazenda, role = 'membro') {
     try {
       console.log("📝 [SERVICE] Criando usuário:", { nome, email, senha: "***", foto_perfil, fazenda });
-      
+
+      const hashedSenha = await bcrypt.hash(senha, SALT_ROUNDS);
+
       const newUser = new User({
         nome,
         email,
-        senha,
+        senha: hashedSenha,
         foto_perfil,
         fazenda,
         role,
@@ -106,6 +111,28 @@ class userService {
   // Atualizar role do usuário
   async updateRole(id, role) {
     return await User.findByIdAndUpdate(id, { role }, { new: true });
+  }
+
+  // Atualizar dados do usuário (nome, email, senha)
+  async updateUser(id, fields) {
+    if (fields.senha) {
+      fields.senha = await bcrypt.hash(fields.senha, SALT_ROUNDS);
+    }
+    return await User.findByIdAndUpdate(id, fields, { new: true });
+  }
+
+  // Deletar usuário
+  async deleteUser(id) {
+    return await User.findByIdAndDelete(id);
+  }
+
+  // Incrementa tokenVersion — invalida todos os tokens ativos do usuário
+  async incrementTokenVersion(id) {
+    return await User.findByIdAndUpdate(
+      id,
+      { $inc: { tokenVersion: 1 } },
+      { new: true }
+    );
   }
 }
 
