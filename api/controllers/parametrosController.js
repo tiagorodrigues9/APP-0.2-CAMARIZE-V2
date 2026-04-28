@@ -1,5 +1,6 @@
 import ParametrosAtuais from "../models/Parametros_atuais.js";
 import Cativeiros from "../models/Cativeiros.js";
+import cativeiroController from "../controllers/cativeiroController.js";
 
 // POST - Receber dados dos sensores do ESP32
 const cadastrarParametros = async (req, res) => {
@@ -65,6 +66,10 @@ const getParametrosAtuais = async (req, res) => {
       return res.status(400).json({ error: "ID do cativeiro é obrigatório" });
     }
 
+    const access = await cativeiroController.assertCativeiroAccess(cativeiroId, req.loggedUser.id, req.loggedUser.role);
+    if (access === null) return res.status(404).json({ error: 'Cativeiro não encontrado.' });
+    if (access === false) return res.status(403).json({ error: 'Acesso negado.' });
+
     // Busca o cativeiro e parâmetro em paralelo para melhor performance
     const [cativeiro, parametroAtual] = await Promise.all([
       Cativeiros.findById(cativeiroId).lean(),
@@ -111,6 +116,10 @@ const getParametrosHistoricos = async (req, res) => {
     if (!cativeiroId) {
       return res.status(400).json({ error: "ID do cativeiro é obrigatório" });
     }
+
+    const access = await cativeiroController.assertCativeiroAccess(cativeiroId, req.loggedUser.id, req.loggedUser.role);
+    if (access === null) return res.status(404).json({ error: 'Cativeiro não encontrado.' });
+    if (access === false) return res.status(403).json({ error: 'Acesso negado.' });
 
     // Busca o cativeiro e calcula data limite
     const dataLimite = new Date();
@@ -172,6 +181,10 @@ const getDadosDashboard = async (req, res) => {
     if (!cativeiroId) {
       return res.status(400).json({ error: "ID do cativeiro é obrigatório" });
     }
+
+    const access = await cativeiroController.assertCativeiroAccess(cativeiroId, req.loggedUser.id, req.loggedUser.role);
+    if (access === null) return res.status(404).json({ error: 'Cativeiro não encontrado.' });
+    if (access === false) return res.status(403).json({ error: 'Acesso negado.' });
 
     // OTIMIZAÇÃO: Buscar cativeiro e dados em paralelo + usar agregação
     const dataLimite = new Date();

@@ -5,9 +5,15 @@ import PushSubscription from "../models/PushSubscriptions.js";
 import EmailSettings from "../models/EmailSettings.js";
 import emailService from "../services/emailService.js";
 
-// Configuração VAPID
-const VAPID_PUBLIC_KEY = "BHRkSsllT2m1OmHkc6xsGdN7CpJFm0zHrfDuA4xh14kMt750uWzOsSNc5tI7wUS3Y_qYF6CjBBfyfIrlZgCY9cs";
-const VAPID_PRIVATE_KEY = "UU6vhFAQVPc-dKZhBncvxTaIQhibrrmqZKlO72f_t8o";
+// Configuração VAPID — obrigatório no .env, sem estas chaves push notifications não funcionam
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  throw new Error(
+    "VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY não definidos no .env. " +
+    "Push notifications não funcionarão sem estas chaves."
+  );
+}
 
 // Função para enviar notificações push
 const sendPushNotification = async (subscription, notificationData) => {

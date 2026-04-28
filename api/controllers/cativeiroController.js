@@ -7,6 +7,38 @@ import Cativeiros from "../models/Cativeiros.js";
 import ParametrosAtuais from "../models/Parametros_atuais.js";
 import Dietas from "../models/Dietas.js";
 import DietasxCativeiros from "../models/DietasxCativeiros.js";
+import UsuariosxFazendas from "../models/UsuariosxFazendas.js";
+
+/**
+ * Verifica se um usuário tem permissão para acessar um cativeiro.
+ * @returns {true}  acesso permitido
+ * @returns {false} sem permissão
+ * @returns {null}  cativeiro não encontrado
+ */
+const assertCativeiroAccess = async (cativeiroId, userId, role) => {
+  if (role === 'master') return true;
+
+  const cativeiro = await Cativeiros.findById(cativeiroId).select('user').lean();
+  if (!cativeiro) return null;
+
+  // Dono direto do cativeiro
+  if (cativeiro.user?.toString() === userId.toString()) return true;
+
+  // Fallback: usuário pertence à fazenda que contém o cativeiro
+  const fazendasDoUsuario = await UsuariosxFazendas.find({
+    usuario: userId,
+    $or: [{ ativo: true }, { ativo: { $exists: false } }]
+  }).select('fazenda').lean();
+
+  if (fazendasDoUsuario.length === 0) return false;
+
+  const vinculo = await FazendasxCativeiros.findOne({
+    fazenda: { $in: fazendasDoUsuario.map(f => f.fazenda) },
+    cativeiro: cativeiroId
+  }).lean();
+
+  return vinculo !== null;
+};
 
 const createCativeiro = async (req, res) => {
   try {
@@ -189,7 +221,15 @@ const getCativeiroById = async (req, res) => {
     if (!cativeiro) {
       return res.status(404).json({ error: 'Cativeiro não encontrado.' });
     }
-    
+
+    // Ownership check — só roda quando chamado via HTTP (req.loggedUser existe).
+    // Quando chamado internamente pelo endpoint de foto (req falso sem loggedUser), é ignorado.
+    if (req.loggedUser) {
+      const access = await assertCativeiroAccess(id, req.loggedUser.id, req.loggedUser.role);
+      if (access === null) return res.status(404).json({ error: 'Cativeiro não encontrado.' });
+      if (access === false) return res.status(403).json({ error: 'Acesso negado. Você não tem permissão para visualizar este cativeiro.' });
+    }
+
     console.log('📊 Dados do cativeiro antes do JSON:');
     console.log('  ID:', cativeiro._id);
     console.log('  Fazenda:', cativeiro.fazenda);
@@ -357,6 +397,11 @@ const getAllCondicoesIdeais = async (req, res) => {
 const getSensoresCativeiro = async (req, res) => {
   try {
     const { cativeiroId } = req.params;
+
+    const access = await assertCativeiroAccess(cativeiroId, req.loggedUser.id, req.loggedUser.role);
+    if (access === null) return res.status(404).json({ error: 'Cativeiro não encontrado.' });
+    if (access === false) return res.status(403).json({ error: 'Acesso negado. Você não tem permissão para visualizar os sensores deste cativeiro.' });
+
     // Popula id_sensor e também o id_tipo_sensor interno para que o frontend receba
     // a descrição do tipo do sensor (TiposSensor.descricao)
     const sensores = await SensoresxCativeiros.find({ id_cativeiro: cativeiroId })
@@ -613,15 +658,16 @@ const updateCativeiroData = async (id, data) => {
   }
 };
 
-export default { 
-  createCativeiro, 
-  getAllCativeiros, 
-  getAllTiposCamarao, 
-  getCativeiroById, 
-  updateCativeiro, 
+export default {
+  createCativeiro,
+  getAllCativeiros,
+  getAllTiposCamarao,
+  getCativeiroById,
+  updateCativeiro,
   updateCativeiroData,
-  deleteCativeiro, 
-  getAllCondicoesIdeais, 
-  getSensoresCativeiro, 
-  getCativeirosStatus 
+  deleteCativeiro,
+  getAllCondicoesIdeais,
+  getSensoresCativeiro,
+  getCativeirosStatus,
+  assertCativeiroAccess,
 }; 
