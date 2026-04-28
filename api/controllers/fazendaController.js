@@ -30,12 +30,27 @@ const createFazenda = async (req, res) => {
     }
     
     console.log("✅ [FAZENDA] Fazenda criada:", result._id);
-    
-    // Cria o relacionamento na tabela intermediária
-    console.log("🔗 [FAZENDA] Criando relacionamento usuário-fazenda...");
+
+    // Cria o relacionamento do master com a fazenda
+    console.log("🔗 [FAZENDA] Criando relacionamento master-fazenda...");
     await UsuariosxFazendas.create({ usuario: usuarioId, fazenda: result._id, ativo: true });
-    console.log("✅ [FAZENDA] Relacionamento criado");
-    
+    console.log("✅ [FAZENDA] Relacionamento master criado");
+
+    // Se um adminId foi informado, cria também o vínculo com o admin
+    const { adminId } = req.body;
+    if (adminId) {
+      const admin = await userService.getById(adminId);
+      if (admin && admin.role === 'admin') {
+        const relExists = await UsuariosxFazendas.findOne({ usuario: adminId, fazenda: result._id });
+        if (!relExists) {
+          await UsuariosxFazendas.create({ usuario: adminId, fazenda: result._id, ativo: true });
+          console.log("✅ [FAZENDA] Relacionamento admin criado:", adminId);
+        }
+      } else {
+        console.log("⚠️ [FAZENDA] adminId inválido ou usuário não é admin:", adminId);
+      }
+    }
+
     res.status(201).json({ message: "Fazenda criada com sucesso!" });
   } catch (error) {
     console.error("❌ [FAZENDA] Erro no controller:", error);
@@ -61,11 +76,36 @@ const getAllFazendas = async (req, res) => {
     
     console.log('🔍 [GET ALL FAZENDAS] UsuarioId:', usuarioId, 'Role:', userRole);
     
-    // Se for master, retorna todas as fazendas
+    // Se for master, retorna todas as fazendas enriquecidas com admins
     if (userRole === 'master') {
       const farms = await fazendaService.getAll();
-      console.log('✅ [GET ALL FAZENDAS] Master - retornando', farms.length, 'fazendas');
-      return res.status(200).json(farms);
+
+      // Busca todos os vínculos ativos e popula dados do usuário
+      const rels = await UsuariosxFazendas.find({ ativo: true })
+        .populate({ path: 'usuario', select: 'nome email role' })
+        .lean();
+
+      // Agrupa admins por fazendaId
+      const adminsByFazenda = {};
+      for (const rel of rels) {
+        if (rel.usuario?.role === 'admin') {
+          const fzId = String(rel.fazenda);
+          if (!adminsByFazenda[fzId]) adminsByFazenda[fzId] = [];
+          adminsByFazenda[fzId].push({
+            id: String(rel.usuario._id),
+            nome: rel.usuario.nome,
+            email: rel.usuario.email,
+          });
+        }
+      }
+
+      const enriched = farms.map(f => ({
+        ...f.toObject(),
+        admins: adminsByFazenda[String(f._id)] || [],
+      }));
+
+      console.log('✅ [GET ALL FAZENDAS] Master - retornando', enriched.length, 'fazendas');
+      return res.status(200).json(enriched);
     }
     
     // Se não for master, retorna apenas as fazendas do usuário logado
@@ -198,6 +238,48 @@ const getFazendaById = async (req, res) => {
   }
 };
 
+// Atualizar dados de uma fazenda — apenas master
+const updateFazenda = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fazenda = await fazendaService.getById(id);
+    if (!fazenda) return res.status(404).json({ error: 'Fazenda não encontrada' });
+
+    // Mantém valores atuais para campos não informados (atualização parcial)
+    const nome   = req.body.nome   ?? fazenda.nome;
+    const rua    = req.body.rua    ?? fazenda.rua;
+    const bairro = req.body.bairro ?? fazenda.bairro;
+    const cidade = req.body.cidade ?? fazenda.cidade;
+    const numero = req.body.numero ?? fazenda.numero;
+
+    await fazendaService.Update(id, nome, rua, bairro, cidade, numero);
+    const updated = await fazendaService.getById(id);
+    console.log('✅ [FAZENDA] Atualizada:', id);
+    res.json({ message: 'Fazenda atualizada com sucesso!', fazenda: updated });
+  } catch (error) {
+    console.error('❌ [FAZENDA] Erro ao atualizar:', error);
+    res.status(500).json({ error: 'Erro interno do servidor.' });
+  }
+};
+
+// Remover fazenda e seus vínculos — apenas master
+const deleteFazenda = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fazenda = await fazendaService.getById(id);
+    if (!fazenda) return res.status(404).json({ error: 'Fazenda não encontrada' });
+
+    // Remove todos os vínculos de usuários com esta fazenda antes de deletar
+    await UsuariosxFazendas.deleteMany({ fazenda: id });
+    await fazendaService.Delete(id);
+    console.log('✅ [FAZENDA] Removida:', id);
+    res.json({ message: 'Fazenda removida com sucesso!' });
+  } catch (error) {
+    console.error('❌ [FAZENDA] Erro ao remover:', error);
+    res.status(500).json({ error: 'Erro interno do servidor.' });
+  }
+};
+
 // Atualizar foto da fazenda
 const updateFotoFazenda = async (req, res) => {
   try {
@@ -225,4 +307,4 @@ const getFotoFazenda = async (req, res) => {
   }
 };
 
-export default { createFazenda, getAllFazendas, getAllFazendasPublic, getFazendaById, updateFotoFazenda, getFotoFazenda }; 
+export default { createFazenda, getAllFazendas, getAllFazendasPublic, getFazendaById, updateFazenda, deleteFazenda, updateFotoFazenda, getFotoFazenda }; 
