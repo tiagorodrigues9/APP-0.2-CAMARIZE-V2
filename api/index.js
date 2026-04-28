@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "./swagger/swaggerConfig.js";
 
 // Carrega as variáveis de ambiente
 dotenv.config();
@@ -71,6 +73,18 @@ app.get('/api/health', (req, res) => {
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString()
   });
+});
+
+// ✅ Documentação Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Camarize API Docs',
+  explorer: true,
+}));
+
+// Endpoint para baixar o spec em JSON (útil para importar no Postman/Insomnia)
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
 });
 
 // ✅ Registra as rotas
