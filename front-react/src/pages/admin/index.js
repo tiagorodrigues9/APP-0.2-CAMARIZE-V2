@@ -4,6 +4,7 @@ import Modal from '../../components/Modal';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/hooks/useAuth';
+import { FaUserCircle } from 'react-icons/fa';
 
 const CreatableSelect = dynamic(() => import('react-select/creatable'), { ssr: false });
 
@@ -503,7 +504,7 @@ export default function AdminPanel() {
     const idStr = String(id);
     const f = fazendas.find(fz => String(fz._id) === idStr);
     if (!f) return 'Sem fazenda';
-    return f.nome && f.codigo ? `${f.nome} - ${f.codigo}` : (f.nome || f.codigo || id);
+    return f.nome || id;
   };
 
   const solicitarVinculoSensores = async (cativeiro) => {
@@ -757,21 +758,29 @@ export default function AdminPanel() {
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleCativeiroFileChange} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2>Painel do Admin</h2>
-        <button
-          onClick={() => {
-            try {
-              sessionStorage.removeItem('token');
-              sessionStorage.removeItem('usuarioCamarize');
-              localStorage.removeItem('token');
-              localStorage.removeItem('usuarioCamarize');
-            } catch {}
-            window.location.href = '/login';
-          }}
-          style={{ border: '1px solid #eee', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}
-          title="Sair"
-        >
-          Sair
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {user?.nome && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem', color: '#666' }}>
+              <FaUserCircle size={18} color="#a3c7f7" />
+              Olá, {user.nome}
+            </span>
+          )}
+          <button
+            onClick={() => {
+              try {
+                sessionStorage.removeItem('token');
+                sessionStorage.removeItem('usuarioCamarize');
+                localStorage.removeItem('token');
+                localStorage.removeItem('usuarioCamarize');
+              } catch {}
+              window.location.href = '/login';
+            }}
+            style={{ border: '1px solid #eee', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}
+            title="Sair"
+          >
+            Sair
+          </button>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
         <button onClick={() => setTab('requests')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='requests'?'#eef':'#fff' }}>Requests</button>
@@ -1792,7 +1801,7 @@ export default function AdminPanel() {
                   <option value="">Selecione uma fazenda</option>
                   {fazendas.map(fazenda => (
                     <option key={fazenda._id} value={fazenda._id}>
-                      {fazenda.nome} - {fazenda.codigo}
+                      {fazenda.nome}
                     </option>
                   ))}
                 </select>

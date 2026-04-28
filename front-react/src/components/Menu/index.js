@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaBars } from "react-icons/fa";
 import { IoClose } from "react-icons/io5";
 import styles from "@/components/Menu/Menu.module.css";
@@ -7,6 +7,17 @@ import Link from "next/link";
 const Menu = () => {
   const [menuIcon, setMenuIcon] = useState(<FaBars />);
   const [isActive, setIsActive] = useState(false);
+  const [nomeUsuario, setNomeUsuario] = useState("");
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("usuarioCamarize") || localStorage.getItem("usuarioCamarize");
+    if (stored) {
+      try {
+        const u = JSON.parse(stored);
+        setNomeUsuario(u?.nome || u?.email || "");
+      } catch {}
+    }
+  }, []);
 
   const activeMenu = () => {
     setIsActive(!isActive);
@@ -47,9 +58,10 @@ const Menu = () => {
           <li>
             <Link href="/settings">Configurações</Link>
           </li>
-          <li>
+          <li className={styles.userGreeting}>
+            {nomeUsuario && <span>Olá, {nomeUsuario}</span>}
             <button onClick={handleLogout} className={styles.logoutBtn}>
-              Logout
+              Sair
             </button>
           </li>
         </ul>

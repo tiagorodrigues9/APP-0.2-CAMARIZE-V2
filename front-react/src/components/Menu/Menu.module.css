@@ -52,6 +52,19 @@
   color: #a3c7f7;
 }
 
+.userGreeting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.userGreeting span {
+  font-size: 0.9rem;
+  color: #666;
+  font-family: "Poppins";
+  white-space: nowrap;
+}
+
 .logoutBtn {
   background: none;
   border: none;
