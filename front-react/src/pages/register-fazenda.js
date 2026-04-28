@@ -1,8 +1,6 @@
-import styles from "@/components/LoginContent/LoginContent.module.css";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import styles from "@/components/CreateContent/CreateContent.module.css";
 
 export default function RegisterFazendaPage() {
   const router = useRouter();
@@ -11,99 +9,119 @@ export default function RegisterFazendaPage() {
   const [bairro, setBairro] = useState("");
   const [cidade, setCidade] = useState("");
   const [numero, setNumero] = useState("");
-  const [remember, setRemember] = useState(false);
+  const [adminId, setAdminId] = useState("");
+  const [admins, setAdmins] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const isFormValid = nome && rua && bairro && cidade && numero;
 
-  const handleRegister = async (e) => {
+  const getToken = () =>
+    typeof window !== "undefined"
+      ? sessionStorage.getItem("token") || localStorage.getItem("token")
+      : null;
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    fetch(`${apiUrl}/users?role=admin`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => setAdmins(Array.isArray(data) ? data : []))
+      .catch(() => setAdmins([]));
+  }, []);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token) {
       setError("Você precisa estar logado para cadastrar uma fazenda.");
       return;
     }
+    setLoading(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const body = { nome, rua, bairro, cidade, numero };
+      if (adminId) body.adminId = adminId;
+
       const response = await fetch(`${apiUrl}/fazendas`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          nome,
-          rua,
-          bairro,
-          cidade,
-          numero
-        })
+        body: JSON.stringify(body),
       });
       if (response.ok) {
-        setSuccess("Fazenda cadastrada com sucesso!");
-        setNome(""); setRua(""); setBairro(""); setCidade(""); setNumero("");
-        router.push("/home");
+        router.back();
       } else {
         const data = await response.json();
-        console.error("Erro ao cadastrar fazenda:", data);
         setError(data.error || "Erro ao cadastrar fazenda.");
       }
-    } catch (error) {
-      console.error("Erro de conexão:", error);
-      setError(`Erro de conexão com o servidor: ${error.message}`);
+    } catch (err) {
+      setError(`Erro de conexão com o servidor: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className={styles.loginMobileWrapper}>
-      <form className={styles.loginForm} onSubmit={handleRegister}>
-        <h2 className={styles.loginTitle}>Cadastre-se para continuar</h2>
-        <label style={{marginBottom: 4, fontWeight: 500}}>Nome da fazenda:</label>
-        <div className={styles.inputGroup}>
+    <div className={styles.createWrapper}>
+      <button
+        className={styles.backBtn}
+        onClick={() => router.back()}
+        type="button"
+        aria-label="Voltar"
+      >
+        <span style={{ fontSize: 24, lineHeight: 1 }}>&larr;</span>
+      </button>
+
+      <form className={styles.formBox} onSubmit={handleSubmit}>
+        <h2 className={styles.title}>Cadastrar fazenda</h2>
+
+        <input
+          className={styles.input}
+          type="text"
+          placeholder="Nome da fazenda"
+          value={nome}
+          onChange={e => setNome(e.target.value)}
+          autoComplete="off"
+          required
+          style={{ gridColumn: "1 / -1" }}
+        />
+
+        <hr className={styles.hr} />
+        <h3 className={styles.subtitle}>Endereço</h3>
+
+        <input
+          className={styles.input}
+          type="text"
+          placeholder="Rua"
+          value={rua}
+          onChange={e => setRua(e.target.value)}
+          autoComplete="off"
+          required
+          style={{ gridColumn: "1 / -1" }}
+        />
+
+        <input
+          className={styles.input}
+          type="text"
+          placeholder="Bairro"
+          value={bairro}
+          onChange={e => setBairro(e.target.value)}
+          autoComplete="off"
+          required
+          style={{ gridColumn: "1 / -1" }}
+        />
+
+        <div className={styles.mediaInputs}>
           <input
-            type="text"
-            name="nome"
-            placeholder="Nome"
             className={styles.input}
-            value={nome}
-            onChange={e => setNome(e.target.value)}
-            autoComplete="off"
-            required
-          />
-        </div>
-        <label style={{marginBottom: 4, fontWeight: 500}}>Endereço</label>
-        <div className={styles.inputGroup}>
-          <input
             type="text"
-            name="rua"
-            placeholder="Rua"
-            className={styles.input}
-            value={rua}
-            onChange={e => setRua(e.target.value)}
-            autoComplete="off"
-            required
-          />
-        </div>
-        <div className={styles.inputGroup}>
-          <input
-            type="text"
-            name="bairro"
-            placeholder="Bairro"
-            className={styles.input}
-            value={bairro}
-            onChange={e => setBairro(e.target.value)}
-            autoComplete="off"
-            required
-          />
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            type="text"
-            name="cidade"
             placeholder="Cidade"
-            className={styles.input}
             value={cidade}
             onChange={e => setCidade(e.target.value)}
             autoComplete="off"
@@ -111,10 +129,9 @@ export default function RegisterFazendaPage() {
             style={{ flex: 2 }}
           />
           <input
-            type="text"
-            name="numero"
-            placeholder="Número"
             className={styles.input}
+            type="text"
+            placeholder="Número"
             value={numero}
             onChange={e => setNumero(e.target.value)}
             autoComplete="off"
@@ -122,34 +139,42 @@ export default function RegisterFazendaPage() {
             style={{ flex: 1 }}
           />
         </div>
-        <div className={styles.rememberRow}>
-          <input
-            type="checkbox"
-            id="remember"
-            checked={remember}
-            onChange={e => setRemember(e.target.checked)}
-            className={styles.checkbox}
-          />
-          <label htmlFor="remember" className={styles.rememberLabel}>Lembre-me</label>
-        </div>
+
+        <hr className={styles.hr} />
+        <h3 className={styles.subtitle}>Responsável</h3>
+
+        <select
+          className={`${styles.input} ${styles.inputSelect}`}
+          value={adminId}
+          onChange={e => setAdminId(e.target.value)}
+          style={{ gridColumn: "1 / -1" }}
+        >
+          <option value="">Sem admin responsável (opcional)</option>
+          {admins.map(a => (
+            <option key={a.id || a._id} value={a.id || a._id}>
+              {a.nome} — {a.email}
+            </option>
+          ))}
+        </select>
+
+        {error && (
+          <p style={{ color: "#ef4444", gridColumn: "1 / -1", margin: 0, fontSize: "0.95rem" }}>
+            {error}
+          </p>
+        )}
+
         <button
           type="submit"
-          className={styles.loginButton}
-          disabled={!isFormValid}
-          style={{ background: "linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)", color: "#fff" }}
+          className={styles.cadastrarBtn}
+          disabled={!isFormValid || loading}
         >
-          Cadastrar
+          {loading ? "Cadastrando..." : "Cadastrar"}
         </button>
-        {success && <div style={{ color: "green", marginTop: 8 }}>{success}</div>}
-        {error && <div className={styles.errorMsg}>{error}</div>}
-        <div className={styles.registerRow}>
-          <span>Já tem uma conta?</span>
-          <Link href="/login" className={styles.registerLink}>Conecte-se agora</Link>
-        </div>
       </form>
-      <div className={styles.logoWrapper}>
-        <Image src="/images/logo.svg" alt="Camarize Logo" width={180} height={40} />
+
+      <div className={styles.logoBox}>
+        <img src="/images/logo_camarize1.png" alt="Camarize Logo" />
       </div>
     </div>
   );
-} 
+}
