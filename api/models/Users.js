@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema({
     enum: ['membro', 'admin', 'master'],
     default: 'membro',
     required: true
+  },
+  tokenVersion: {
+    type: Number,
+    default: 0,
   }
 });
 
