@@ -66,7 +66,7 @@ export default function MasterPanel() {
 
   // Modal de edição de fazenda
   const [showEditFazendaModal, setShowEditFazendaModal] = useState(false);
-  const [editFazendaForm, setEditFazendaForm] = useState({ id: '', nome: '', rua: '', bairro: '', cidade: '', numero: '' });
+  const [editFazendaForm, setEditFazendaForm] = useState({ id: '', nome: '', rua: '', bairro: '', cidade: '', numero: '', adminId: '' });
 
   // Modal de criação de cativeiro
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -705,6 +705,7 @@ export default function MasterPanel() {
   };
 
   const openEditFazenda = (fazenda) => {
+    const currentAdmin = fazenda.admins?.[0];
     setEditFazendaForm({
       id: String(fazenda._id),
       nome: fazenda.nome || '',
@@ -712,6 +713,7 @@ export default function MasterPanel() {
       bairro: fazenda.bairro || '',
       cidade: fazenda.cidade || '',
       numero: String(fazenda.numero || ''),
+      adminId: currentAdmin ? String(currentAdmin.id) : '',
     });
     setShowEditFazendaModal(true);
   };
@@ -719,9 +721,11 @@ export default function MasterPanel() {
   const handleUpdateFazenda = async () => {
     try {
       const token = getToken();
+      const body = { nome: editFazendaForm.nome, rua: editFazendaForm.rua, bairro: editFazendaForm.bairro, cidade: editFazendaForm.cidade, numero: editFazendaForm.numero };
+      if (editFazendaForm.adminId) body.adminId = editFazendaForm.adminId;
       await axios.patch(
         `${apiUrl}/fazendas/${editFazendaForm.id}`,
-        { nome: editFazendaForm.nome, rua: editFazendaForm.rua, bairro: editFazendaForm.bairro, cidade: editFazendaForm.cidade, numero: editFazendaForm.numero },
+        body,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setShowEditFazendaModal(false);
@@ -1678,6 +1682,26 @@ export default function MasterPanel() {
                 <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Número</label>
                 <input value={editFazendaForm.numero} onChange={e => setEditFazendaForm(f => ({ ...f, numero: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
               </div>
+              {(() => {
+                const allAdmins = (users || []).filter(u => u.role === 'admin');
+                if (allAdmins.length === 0) return null;
+                const hasLinkedAdmin = getFazendaAdmins(editFazendaForm.id).length > 0;
+                return (
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Admin responsável</label>
+                    <select
+                      value={editFazendaForm.adminId}
+                      onChange={e => setEditFazendaForm(f => ({ ...f, adminId: e.target.value }))}
+                      style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }}
+                    >
+                      {!hasLinkedAdmin && <option value="">Sem admin responsável (opcional)</option>}
+                      {allAdmins.map(a => (
+                        <option key={a.id || a._id} value={a.id || a._id}>{a.nome} — {a.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button onClick={() => setShowEditFazendaModal(false)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Cancelar</button>

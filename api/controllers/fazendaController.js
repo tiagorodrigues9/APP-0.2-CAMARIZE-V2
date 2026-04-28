@@ -253,6 +253,21 @@ const updateFazenda = async (req, res) => {
     const numero = req.body.numero ?? fazenda.numero;
 
     await fazendaService.Update(id, nome, rua, bairro, cidade, numero);
+
+    // Vincula um admin à fazenda se adminId foi informado e ainda não está vinculado
+    const { adminId } = req.body;
+    if (adminId) {
+      const admin = await userService.getById(adminId);
+      if (!admin || admin.role !== 'admin') {
+        return res.status(400).json({ error: 'adminId inválido ou usuário não é admin.' });
+      }
+      const relExists = await UsuariosxFazendas.findOne({ usuario: adminId, fazenda: id });
+      if (!relExists) {
+        await UsuariosxFazendas.create({ usuario: adminId, fazenda: id, ativo: true });
+        console.log('✅ [FAZENDA] Admin vinculado:', adminId);
+      }
+    }
+
     const updated = await fazendaService.getById(id);
     console.log('✅ [FAZENDA] Atualizada:', id);
     res.json({ message: 'Fazenda atualizada com sucesso!', fazenda: updated });
