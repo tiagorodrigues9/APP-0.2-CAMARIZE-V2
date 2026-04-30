@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
-import NavBottom from '@/components/NavBottom';
+import MemberLayout from '@/components/MemberLayout';
 
 export default function MyRequests() {
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -173,102 +173,26 @@ export default function MyRequests() {
 
   if (authLoading || loading) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        paddingBottom: '100px'
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '20px',
-          padding: '48px',
-          textAlign: 'center',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-          maxWidth: '400px',
-          width: '100%'
-        }}>
-          <div style={{
-            width: '60px',
-            height: '60px',
-            border: '5px solid #f3f3f3',
-            borderTop: '5px solid #667eea',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 24px'
-          }}></div>
-          <div style={{
-            fontSize: '24px',
-            fontWeight: '600',
-            color: '#333',
-            marginBottom: '12px'
-          }}>
-            Carregando solicitações...
-          </div>
-          <div style={{
-            fontSize: '15px',
-            color: '#666',
-            lineHeight: '1.5'
-          }}>
-            Estamos buscando suas solicitações
-          </div>
-          <style jsx>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
+      <MemberLayout title="Minhas Solicitações" subtitle="Histórico e status das suas solicitações">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px', color: '#94a3b8', fontSize: '0.9rem' }}>
+          Carregando solicitações...
         </div>
-        <NavBottom />
-      </div>
+      </MemberLayout>
     );
   }
   if (!isAuthenticated) return (
-    <div style={{ padding: 20, color: 'red', paddingBottom: '100px', minHeight: '100vh' }}>
-      Sessão expirada. Faça login novamente.
-      <NavBottom />
-    </div>
+    <MemberLayout title="Minhas Solicitações">
+      <div style={{ padding: 20, color: '#ef4444' }}>Sessão expirada. Faça login novamente.</div>
+    </MemberLayout>
   );
   if (error) return (
-    <div style={{ padding: 20, color: 'red', paddingBottom: '100px', minHeight: '100vh' }}>
-      {error}
-      <NavBottom />
-    </div>
+    <MemberLayout title="Minhas Solicitações">
+      <div style={{ padding: 20, color: '#ef4444' }}>{error}</div>
+    </MemberLayout>
   );
 
   return (
-    <div style={{ padding: 20, paddingBottom: '100px' }}>
-      <div style={{ position: 'relative', marginBottom: 16 }}>
-        <button 
-          style={{ 
-            position: 'absolute',
-            left: 0,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'none', 
-            border: 'none', 
-            fontSize: 24, 
-            cursor: 'pointer',
-            padding: '8px',
-            borderRadius: '4px',
-            transition: 'background-color 0.2s',
-            zIndex: 1
-          }} 
-          onClick={() => window.history.back()}
-          onMouseOver={(e) => {
-            e.target.style.backgroundColor = 'rgba(0,0,0,0.05)';
-          }}
-          onMouseOut={(e) => {
-            e.target.style.backgroundColor = 'transparent';
-          }}
-          title="Voltar"
-        >
-          &larr;
-        </button>
-        <h2 style={{ textAlign: 'center', margin: 0, fontWeight: 600, fontSize: '1.35rem', padding: '8px 0' }}>Minhas Solicitações</h2>
-      </div>
+    <MemberLayout title="Minhas Solicitações" subtitle="Histórico e status das suas solicitações">
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, padding: 12, background: '#f9fafb', borderRadius: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -381,8 +305,7 @@ export default function MyRequests() {
           </div>
         </div>
       </Modal>
-      <NavBottom />
-    </div>
+    </MemberLayout>
   );
 }
 

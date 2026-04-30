@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import styles from "./HomeContent.module.css";
-import NavBottom from "../NavBottom";
+import panelStyles from "@/styles/panel.module.css";
 import RequestButton from "../RequestButton";
 import AuthError from "../AuthError";
 import Loading from "../Loading";
@@ -10,7 +10,7 @@ import Notification from "../Notification";
 import Modal from '../Modal';
 import GuidedTour from "../GuidedTour";
 
-export default function HomeContent() {
+export default function HomeContent({ sidebarRefs }) {
   const router = useRouter();
   const [role, setRole] = useState('membro');
   const [cativeiros, setCativeiros] = useState([]);
@@ -26,18 +26,9 @@ export default function HomeContent() {
 
   // Refs para o tour
   const infoRef = useRef(null);
-  const statusRef = useRef(null);
-  const sensoresRef = useRef(null);
   const addRef = useRef(null);
   const downloadRef = useRef(null);
   const firstCativeiroRef = useRef(null);
-  // Refs NavBottom
-  const navHomeRef = useRef(null);
-  const navSettingsRef = useRef(null);
-  const navPlusRef = useRef(null);
-  const navRequestsRef = useRef(null);
-  const navNotificationsRef = useRef(null);
-  const navProfileRef = useRef(null);
 
   const showNotification = (message, type = 'success', actionLabel = null, onAction = null) => {
     setNotification({ show: true, message, type, actionLabel, onAction });
@@ -178,94 +169,72 @@ export default function HomeContent() {
   // Se está carregando, mostrar skeletons
   if (loading) {
     return (
-      <>
-        <div className={styles.container}>
-          <div className={styles.header} />
-          <div className={styles.cativeiroList}>
-            <div className={styles.skeletonList}>
-              {[1,2,3,4].map((i) => (
-                <div className={styles.skeletonItem} key={i}>
-                  <div className={styles.skeletonThumb} />
-                  <div>
-                    <div className={`${styles.skeletonText} ${styles.long}`} />
-                    <div className={`${styles.skeletonText} ${styles.short}`} />
-                  </div>
-                </div>
-              ))}
+      <div className={styles.skeletonList}>
+        {[1,2,3,4].map((i) => (
+          <div className={styles.skeletonItem} key={i}>
+            <div className={styles.skeletonThumb} />
+            <div>
+              <div className={`${styles.skeletonText} ${styles.long}`} />
+              <div className={`${styles.skeletonText} ${styles.short}`} />
             </div>
           </div>
-        </div>
-        <NavBottom />
-      </>
+        ))}
+      </div>
     );
   }
 
   return (
     <>
-      <div className={styles.container}>
-        <div className={styles.header}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button 
-              className={styles.iconBtn} 
-              aria-label="Informações sobre a aplicação"
-              onClick={() => setShowInfoModal(true)}
-              style={{ padding: '4px', borderRadius: '50%', border: 'none', background: 'transparent', cursor: 'pointer' }}
-              ref={infoRef}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="#3B82F6" strokeWidth="2" fill="none"/>
-                <path d="M12 16V12" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="12" cy="8" r="1" fill="#3B82F6"/>
-              </svg>
-            </button>
-          </div>
-
-          <div className={styles.iconGroup}>
+      <section className={panelStyles.section}>
+        <div className={panelStyles.sectionHeader}>
+          <h2 className={panelStyles.sectionTitle}>
+            Cativeiros
+            {cativeiros.length > 0 && (
+              <span className={panelStyles.filterCount} style={{ marginLeft: 10, fontSize: '0.78rem' }}>
+                {cativeiros.length}
+              </span>
+            )}
+          </h2>
+          <div className={panelStyles.sectionActions}>
             <button
-              className={styles.iconBtn}
-              aria-label="Status dos Cativeiros"
-              onClick={() => router.push('/status-cativeiros')}
-              style={{ position: 'relative' }}
-              ref={statusRef}
+              ref={infoRef}
+              className={`${panelStyles.btn} ${panelStyles.btnSecondary} ${panelStyles.btnSm}`}
+              onClick={() => setShowInfoModal(true)}
+              title="Sobre o Camarize"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M9 12l2 2 4-4" stroke="#222" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="12" cy="12" r="10" stroke="#222" strokeWidth="2" fill="none"/>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                <path d="M12 16V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="12" cy="8" r="1" fill="currentColor"/>
               </svg>
-            </button>
-            <button className={styles.iconBtn} aria-label="Sensor" onClick={() => router.push('/sensores')} ref={sensoresRef}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <rect x="7" y="7" width="10" height="10" rx="2" fill="#000"/>
-                <rect x="9" y="9" width="6" height="6" rx="1" fill="#fff"/>
-                <rect x="2" y="11" width="3" height="2" rx="1" fill="#000"/>
-                <rect x="19" y="11" width="3" height="2" rx="1" fill="#000"/>
-                <rect x="11" y="2" width="2" height="3" rx="1" fill="#000"/>
-                <rect x="11" y="19" width="2" height="3" rx="1" fill="#000"/>
-                <rect x="4.22" y="4.22" width="2" height="3" rx="1" transform="rotate(-45 4.22 4.22)" fill="#000"/>
-                <rect x="17.78" y="16.78" width="2" height="3" rx="1" transform="rotate(-45 17.78 16.78)" fill="#000"/>
-                <rect x="4.22" y="16.78" width="2" height="3" rx="1" transform="rotate(45 4.22 16.78)" fill="#000"/>
-                <rect x="17.78" y="4.22" width="2" height="3" rx="1" transform="rotate(45 17.78 4.22)" fill="#000"/>
-              </svg>
+              Sobre
             </button>
             {role !== 'membro' && (
               <button
-                className={styles.iconBtn}
-                aria-label="Cadastrar Cativeiro"
-                onClick={() => router.push('/create-cativeiros')}
                 ref={addRef}
+                className={`${panelStyles.btn} ${panelStyles.btnSecondary} ${panelStyles.btnSm}`}
+                onClick={() => router.push('/create-cativeiros')}
+                title="Cadastrar Cativeiro"
               >
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#222" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#222" strokeWidth="2"/></svg>
+                + Cativeiro
               </button>
             )}
-            <button className={styles.iconBtn} aria-label="Download" onClick={handleDownloadClick} ref={downloadRef}>
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 4v12m0 0l-4-4m4 4l4-4" stroke="#222" strokeWidth="2"/><rect x="4" y="18" width="16" height="2" rx="1" fill="#222"/></svg>
+            <button
+              ref={downloadRef}
+              className={`${panelStyles.btn} ${panelStyles.btnPrimary} ${panelStyles.btnSm}`}
+              onClick={handleDownloadClick}
+              title="Baixar Relatório"
+            >
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24">
+                <path d="M12 4v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <rect x="4" y="18" width="16" height="2" rx="1" fill="currentColor"/>
+              </svg>
+              Relatório
             </button>
           </div>
         </div>
 
-
-
-      <div className={styles.cativeiroList}>
+        <div className={styles.cativeiroList}>
         {cativeiros.length === 0 ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyMessage}>Sem cativeiros cadastrados</div>
@@ -433,51 +402,24 @@ export default function HomeContent() {
             );
           })
         )}
-      </div>
-      </div>
-      
-      {/* Logo */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '8px 24px',
-        background: 'white',
-        borderTop: '1px solid #e5e7eb',
-        maxWidth: 600,
-        width: '100%',
-        margin: '0 auto'
-      }}>
-        <img src="/images/logo.svg" alt="Logo" style={{ height: 24 }} />
-      </div>
-      
-      <NavBottom 
-        homeRef={navHomeRef}
-        settingsRef={navSettingsRef}
-        plusRef={navPlusRef}
-        requestsRef={navRequestsRef}
-        notificationsRef={navNotificationsRef}
-        profileRef={navProfileRef}
-      />
+        </div>
+      </section>
 
       {/* Tour guiado - somente na primeira visita */}
       {showTour && (
         <GuidedTour
           steps={
             [
-              { ref: infoRef, title: 'Informações', content: 'Saiba o que é o Camarize e por que monitoramos temperatura, pH e amônia.' },
-              { ref: statusRef, title: 'Status dos cativeiros', content: 'Veja rapidamente se algum cativeiro precisa de atenção agora.' },
-              ...(cativeiros.length > 0 ? [{ ref: firstCativeiroRef, title: 'Cativeiro', content: 'Toque no cativeiro para abrir o dashboard com dados em tempo real.' }] : []),
-              { ref: sensoresRef, title: 'Sensores', content: 'Gerencie sensores instalados e verifique o funcionamento.' },
+              { ref: infoRef, title: 'Sobre o Camarize', content: 'Saiba o que é o Camarize e por que monitoramos temperatura, pH e amônia.' },
+              ...(cativeiros.length > 0 ? [{ ref: firstCativeiroRef, title: 'Cativeiro', content: 'Clique no cativeiro para abrir o dashboard com dados em tempo real.' }] : []),
               { ref: addRef, title: 'Adicionar cativeiro', content: 'Cadastre um novo cativeiro para começar a monitorar.' },
               { ref: downloadRef, title: 'Relatórios', content: 'Baixe relatórios com os principais indicadores por período.' },
-              // Etapas da NavBar inferior
-              { ref: navHomeRef, title: 'Início', content: 'Volte para a tela inicial a qualquer momento.', placement: 'top' },
-              { ref: navSettingsRef, title: 'Configurações', content: 'Ajuste preferências e integrações.', placement: 'top' },
-              { ref: navPlusRef, title: 'Atalho de Cadastro', content: 'Adicione cativeiros rapidamente por aqui.', placement: 'top' },
-              { ref: navRequestsRef, title: 'Histórico de Solicitações', content: 'Visualize todas as suas solicitações enviadas e acompanhe o status de cada uma.', placement: 'top' },
-              { ref: navNotificationsRef, title: 'Notificações', content: 'Veja alertas e históricos importantes.', placement: 'top' },
-              { ref: navProfileRef, title: 'Perfil', content: 'Acesse dados da sua conta.', placement: 'top' },
+              { ref: sidebarRefs?.['/status-cativeiros'], title: 'Status', content: 'Veja o status geral de saúde de todos os seus cativeiros.' },
+              { ref: sidebarRefs?.['/sensores'], title: 'Sensores', content: 'Gerencie os sensores IoT conectados aos seus cativeiros.' },
+              { ref: sidebarRefs?.['/requests'], title: 'Solicitações', content: 'Envie e acompanhe solicitações ao administrador da fazenda.' },
+              { ref: sidebarRefs?.['/notifications'], title: 'Notificações', content: 'Veja alertas e avisos gerados pelo sistema de monitoramento.' },
+              { ref: sidebarRefs?.['/settings'], title: 'Configurações', content: 'Gerencie as informações da sua fazenda e preferências do sistema.' },
+              { ref: sidebarRefs?.['/profile'], title: 'Perfil', content: 'Visualize e edite seus dados pessoais e foto de perfil.' },
             ].filter(s => s.ref && s.ref.current)
           }
           onFinish={() => {

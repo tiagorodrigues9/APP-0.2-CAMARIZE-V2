@@ -1,12 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/router';
 import Modal from '../../components/Modal';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 import { FaUserCircle } from 'react-icons/fa';
+import { HiOutlineClipboardList, HiOutlineBell, HiOutlineOfficeBuilding, HiOutlineUsers, HiOutlineChatAlt2, HiOutlineUser, HiOutlineChip, HiOutlineBeaker } from 'react-icons/hi';
+import styles from '../../styles/panel.module.css';
 
 export default function MasterPanel() {
   const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const router = useRouter();
   const [items, setItems] = useState([]);
   const [allRequests, setAllRequests] = useState([]);
   const [filteredRequests, setFilteredRequests] = useState([]);
@@ -64,6 +67,13 @@ export default function MasterPanel() {
   const [cativeirosByFazenda, setCativeirosByFazenda] = useState({}); // fazendaId -> [cativeiros]
   const [loadingFazenda, setLoadingFazenda] = useState({}); // fazendaId -> bool
 
+  // Confirmação de mudança de role
+  const [pendingRoleChange, setPendingRoleChange] = useState(null); // { userId, userName, currentRole, newRole }
+
+  // Modal de criação de fazenda
+  const [showCreateFazendaModal, setShowCreateFazendaModal] = useState(false);
+  const [newFazendaForm, setNewFazendaForm] = useState({ nome: '', rua: '', bairro: '', cidade: '', numero: '', adminId: '' });
+
   // Modal de edição de fazenda
   const [showEditFazendaModal, setShowEditFazendaModal] = useState(false);
   const [editFazendaForm, setEditFazendaForm] = useState({ id: '', nome: '', rua: '', bairro: '', cidade: '', numero: '', adminId: '' });
@@ -100,6 +110,30 @@ export default function MasterPanel() {
     amonia_media_diaria: '',
     fotoFile: null
   });
+
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      if (token) {
+        await fetch('/api/users/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {
+      // prossegue com logout local mesmo se a requisição falhar
+    } finally {
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('usuarioCamarize');
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuarioCamarize');
+      window.location.href = '/login';
+    }
+  };
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   const getToken = () => (typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null);
@@ -191,6 +225,15 @@ export default function MasterPanel() {
       load();
     }
   }, [authLoading, isAuthenticated]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) { router.replace('/login'); return; }
+    const role = user?.role || (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')?.role) : null);
+    if (!role) return;
+    if (role === 'admin') { router.replace('/admin'); return; }
+    if (role !== 'master') { router.replace('/login'); }
+  }, [authLoading, isAuthenticated, user]);
 
   // Chat polling
   useEffect(() => {
@@ -735,6 +778,20 @@ export default function MasterPanel() {
     }
   };
 
+  const handleCreateFazenda = async () => {
+    try {
+      const token = getToken();
+      const body = { nome: newFazendaForm.nome, rua: newFazendaForm.rua, bairro: newFazendaForm.bairro, cidade: newFazendaForm.cidade, numero: newFazendaForm.numero };
+      if (newFazendaForm.adminId) body.adminId = newFazendaForm.adminId;
+      await axios.post(`${apiUrl}/fazendas`, body, { headers: { Authorization: `Bearer ${token}` } });
+      setShowCreateFazendaModal(false);
+      setNewFazendaForm({ nome: '', rua: '', bairro: '', cidade: '', numero: '', adminId: '' });
+      await load();
+    } catch (e) {
+      alert('Erro ao criar fazenda: ' + (e?.response?.data?.error || e.message));
+    }
+  };
+
   const handleDeleteFazenda = async (id, nome) => {
     if (!window.confirm(`Excluir a fazenda "${nome}"? Esta ação removerá todos os vínculos de usuários com ela.`)) return;
     try {
@@ -833,50 +890,74 @@ export default function MasterPanel() {
 
   const localRole = typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')?.role) : undefined;
   const effectiveRole = user?.role || localRole;
-  if (authLoading || loading) return <div style={{ padding: 20 }}>Carregando...</div>;
-  if (!isAuthenticated) return <div style={{ padding: 20, color: 'red' }}>Sessão expirada. Faça login novamente.</div>;
-  if (!effectiveRole) return <div style={{ padding: 20 }}>Carregando permissões...</div>;
-  if (effectiveRole !== 'master') return <div style={{ padding: 20, color: 'red' }}>Acesso restrito ao Master.</div>;
-  if (error) return <div style={{ padding: 20, color: 'red' }}>{error}</div>;
+  if (authLoading || loading || !isAuthenticated || !effectiveRole || effectiveRole !== 'master') return <div className={styles.loadingScreen}>Carregando...</div>;
+  if (error) return <div className={styles.loadingScreen} style={{ color: '#ef4444' }}>{error}</div>;
+
+  const masterNavItems = [
+    { id: 'requests', icon: HiOutlineClipboardList, label: 'Requests' },
+    { id: 'solicitacoes', icon: HiOutlineBell, label: 'Solicitações' },
+    { id: 'usuarios', icon: HiOutlineUser, label: 'Usuários' },
+    { id: 'cativeiros', icon: HiOutlineOfficeBuilding, label: 'Cativeiros' },
+    { id: 'sensores', icon: HiOutlineChip, label: 'Sensores' },
+    { id: 'dietas', icon: HiOutlineBeaker, label: 'Dietas' },
+    { id: 'chat', icon: HiOutlineChatAlt2, label: 'Chat' },
+  ];
+
+  const masterPageTitles = {
+    requests: ['Requests', 'Histórico de ações dos admins'],
+    solicitacoes: ['Solicitações', 'Aprovações pesadas pendentes'],
+    usuarios: ['Usuários', 'Gestão de usuários e permissões'],
+    cativeiros: ['Fazendas & Cativeiros', 'Visão geral de todas as fazendas'],
+    sensores: ['Sensores', 'Gestão e vinculação de sensores IoT'],
+    dietas: ['Dietas', 'Configuração de dietas para cativeiros'],
+    chat: ['Chat com Admins', 'Comunicação com administradores'],
+  };
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h2>Painel Master</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {user?.nome && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem', color: '#666' }}>
-              <FaUserCircle size={18} color="#a3c7f7" />
-              Olá, {user.nome}
-            </span>
-          )}
-          <button
-            onClick={() => {
-              try {
-                localStorage.removeItem('token');
-                localStorage.removeItem('usuarioCamarize');
-              } catch {}
-              window.location.href = '/login';
-            }}
-            style={{ border: '1px solid #eee', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}
-            title="Sair"
-          >
-            Sair
+    <div className={styles.layout}>
+
+      {/* SIDEBAR */}
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarHeader}>
+          <img src="/images/logo.svg" className={styles.sidebarLogo} alt="Logo" />
+          <div className={styles.sidebarRole}>Painel Master</div>
+        </div>
+        <nav className={styles.sidebarNav}>
+          {masterNavItems.map(({ id, icon: Icon, label }) => (
+            <button
+              key={id}
+              className={`${styles.navItem} ${tab === id ? styles.navItemActive : ''}`}
+              onClick={() => setTab(id)}
+            >
+              <Icon className={styles.navIcon} />
+              <span className={styles.navLabel}>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className={styles.sidebarFooter}>
+          <div className={styles.userCard}>
+            <div className={styles.userAvatar}>{user?.nome?.[0]?.toUpperCase() || 'M'}</div>
+            <div className={styles.userInfo}>
+              <div className={styles.userName}>{user?.nome || 'Master'}</div>
+              <div className={styles.userRoleBadge}>Master</div>
+            </div>
+          </div>
+          <button className={styles.sidebarLogoutBtn} onClick={() => setShowLogoutModal(true)}>
+            Sair da conta
           </button>
         </div>
-      </div>
-      <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
-        <button onClick={() => setTab('requests')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='requests'?'#eef':'#fff' }}>Requests</button>
-        <button onClick={() => setTab('solicitacoes')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='solicitacoes'?'#eef':'#fff' }}>Solicitações</button>
-        <button onClick={() => setTab('usuarios')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='usuarios'?'#eef':'#fff' }}>Usuários</button>
-        <button onClick={() => setTab('cativeiros')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='cativeiros'?'#eef':'#fff' }}>Cativeiros</button>
-        <button onClick={() => setTab('sensores')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='sensores'?'#eef':'#fff' }}>Sensores</button>
-        <button onClick={() => setTab('dietas')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='dietas'?'#eef':'#fff' }}>Dietas</button>
-        <button onClick={() => setTab('chat')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='chat'?'#eef':'#fff' }}>Chat</button>
-      </div>
+      </aside>
+
+      {/* MAIN */}
+      <div className={styles.main}>
+        <header className={styles.topBar}>
+          <h1 className={styles.pageTitle}>{(masterPageTitles[tab] || [''])[0]}</h1>
+          <p className={styles.pageSubtitle}>{(masterPageTitles[tab] || ['', ''])[1]}</p>
+        </header>
+        <div className={styles.content}>
 
       {tab === 'requests' && (
-        <section>
+        <section className={styles.section}>
           <h3>Histórico de Requests dos Admins</h3>
           
           {/* Filtros */}
@@ -1063,11 +1144,11 @@ export default function MasterPanel() {
       )}
 
       {tab === 'solicitacoes' && (
-        <section>
+        <section className={styles.section}>
           <h3>Solicitações pesadas (Admins)</h3>
           {items.length === 0 && <div>Nenhuma solicitação pendente.</div>}
           {items.map(item => (
-            <div key={item._id} style={{ border: '1px solid #eee', padding: 12, marginBottom: 10, borderRadius: 6 }}>
+            <div key={item._id} className={styles.card}>
               <div style={{ marginBottom: 8 }}>
                 <div><b>Ação:</b> {item.action}</div>
                 <div><b>Tipo:</b> {item.type}</div>
@@ -1114,27 +1195,43 @@ export default function MasterPanel() {
       )}
 
       {tab === 'usuarios' && (
-        <section>
-          <h3>Usuários</h3>
-          {users.map(u => (
-            <div key={u.id} style={{ border: '1px solid #eee', padding: 12, marginBottom: 10 }}>
-              <div><b>{u.nome}</b> — {u.email} — Role atual: {u.role}</div>
-              <select value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}>
-                <option value="membro">membro</option>
-                <option value="admin">admin</option>
-                <option value="master">master</option>
-              </select>
-            </div>
-          ))}
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Usuários</h2>
+            <span className={styles.filterCount}>{users.length} usuário{users.length !== 1 ? 's' : ''}</span>
+          </div>
+          {users.map(u => {
+            const roleBadgeClass = u.role === 'master' ? styles.userRowRoleMaster : u.role === 'admin' ? styles.userRowRoleAdmin : styles.userRowRoleMembro;
+            const initials = (u.nome || '?').split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
+            return (
+              <div key={u.id} className={styles.userRow}>
+                <div className={styles.userRowAvatar}>{initials}</div>
+                <div className={styles.userRowInfo}>
+                  <div className={styles.userRowName}>{u.nome}</div>
+                  <div className={styles.userRowEmail}>{u.email}</div>
+                  <span className={`${styles.userRowRoleBadge} ${roleBadgeClass}`}>{u.role}</span>
+                </div>
+                <select
+                  className={styles.userRowSelect}
+                  value={u.role}
+                  onChange={(e) => setPendingRoleChange({ userId: u.id, userName: u.nome, currentRole: u.role, newRole: e.target.value })}
+                >
+                  <option value="membro">Membro</option>
+                  <option value="admin">Admin</option>
+                  <option value="master">Master</option>
+                </select>
+              </div>
+            );
+          })}
         </section>
       )}
 
       {tab === 'cativeiros' && (
-        <section>
+        <section className={styles.section}>
           <h3>Fazendas e Cativeiros</h3>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '12px 0' }}>
             <button onClick={() => openCreateModal()} style={{ border: '1px solid #eee', background: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: '0.95rem' }}>Criar cativeiro</button>
-            <Link href="/register-fazenda" style={{ border: '1px solid #a3c7f7', background: '#eff6ff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', textDecoration: 'none', color: '#1d4ed8', fontSize: '0.95rem', display: 'inline-block' }}>+ Nova fazenda</Link>
+            <button onClick={() => setShowCreateFazendaModal(true)} style={{ border: '1px solid #a3c7f7', background: '#eff6ff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', color: '#1d4ed8', fontSize: '0.95rem' }}>+ Nova fazenda</button>
           </div>
           {(() => {
             const grouped = groupedByFazenda();
@@ -1156,14 +1253,14 @@ export default function MasterPanel() {
             const fzObj = fazendas.find(f => String(f._id) === fzId);
             const fzAdmins = getFazendaAdmins(fzId);
             return (
-            <div key={fzId} style={{ border: '1px solid #eee', borderRadius: 8, marginBottom: 10 }}>
+            <div key={fzId} className={styles.accordion}>
               <div
                 onClick={() => {
                   const willExpand = !expandedFazenda[fzId];
                   setExpandedFazenda(prev => ({ ...prev, [fzId]: willExpand }));
                   if (willExpand) ensureCativeirosForFazenda(fzId);
                 }}
-                style={{ padding: '8px 10px', cursor: 'pointer', background: '#f9fafb', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                className={`${styles.accordionHeader} ${expandedFazenda[fzId] ? styles.accordionHeaderOpen : ''}`}
               >
                 <div>
                   <span style={{ fontWeight: 600 }}>{getFazendaName(fzId)}</span>
@@ -1323,14 +1420,14 @@ export default function MasterPanel() {
       )}
 
       {tab === 'sensores' && (
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Gerenciar Sensores</h3>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Gerenciar Sensores</h2>
             <button onClick={() => setShowCreateSensor(true)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '14px' }}>Novo sensor</button>
           </div>
           {sensores.length === 0 && <div style={{ color: '#888' }}>Nenhum sensor cadastrado.</div>}
           {sensores.map(s => (
-            <div key={s._id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+            <div key={s._id} className={styles.sensorCard}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div><b>Tipo:</b> {getSensorType(s)}</div>
@@ -1350,9 +1447,9 @@ export default function MasterPanel() {
       )}
 
       {tab === 'dietas' && (
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Gerenciar Dietas</h3>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Gerenciar Dietas</h2>
             <div style={{ display: 'flex', gap: 8 }}>
               <input value={dietaForm.descricao} onChange={(e) => setDietaForm(f => ({ ...f, descricao: e.target.value }))} placeholder="Descrição" style={{ padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6, minWidth: 240 }} />
               <input type="number" step="0.01" value={dietaForm.quantidade} onChange={(e) => setDietaForm(f => ({ ...f, quantidade: e.target.value }))} placeholder="Quantidade (g)" style={{ width: 160, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6 }} />
@@ -1374,7 +1471,7 @@ export default function MasterPanel() {
               <h4>Lista de Dietas</h4>
               {dietas.length === 0 && <div style={{ color: '#888' }}>Nenhuma dieta cadastrada.</div>}
               {dietas.map(d => (
-                <div key={d._id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                <div key={d._id} className={styles.dietaCard}>
                   {editingDietaId === d._id ? (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
@@ -1451,11 +1548,11 @@ export default function MasterPanel() {
       )}
 
       {tab === 'chat' && (
-        <section>
+        <section className={styles.section}>
           <h3>Chat com Admins</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 12 }}>
-            <div style={{ border: '1px solid #eee', borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ padding: 8, background: '#f9fafb', borderBottom: '1px solid #eee', fontWeight: 600 }}>Conversas</div>
+          <div className={styles.chatLayout}>
+            <div className={styles.chatSidebar}>
+              <div className={styles.chatSidebarHeader}>Conversas</div>
               <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflow: 'auto' }}>
                 {chatConversations.length === 0 && <div style={{ color: '#888' }}>Nenhuma conversa.</div>}
                 {chatConversations.map(c => (
@@ -1557,6 +1654,9 @@ export default function MasterPanel() {
           </div>
         </section>
       )}
+
+        </div>{/* /content */}
+      </div>{/* /main */}
 
       {showCreateSensor && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -1711,68 +1811,160 @@ export default function MasterPanel() {
         </div>
       )}
 
-      {/* Modal de criação de cativeiro */}
-      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Criar cativeiro">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Fazenda</label>
-            <select value={createForm.fazendaId} onChange={(e) => setCreateForm(f => ({ ...f, fazendaId: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
-              {fazendas.map(f => (
-                <option key={f._id} value={f._id}>{getFazendaName(f._id)}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Nome</label>
-            <input value={createForm.nome} onChange={(e) => setCreateForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome do cativeiro" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Tipo de camarão</label>
-            <select value={createForm.id_tipo_camarao} onChange={(e) => setCreateForm(f => ({ ...f, id_tipo_camarao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
-              {tiposCamarao.map(t => (
-                <option key={t._id} value={t._id}>{t.nome}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Data de instalação</label>
-            <input type="date" value={createForm.data_instalacao} onChange={(e) => setCreateForm(f => ({ ...f, data_instalacao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Temp ideal (°C)</label>
-            <input value={createForm.temp_media_diaria} onChange={(e) => setCreateForm(f => ({ ...f, temp_media_diaria: e.target.value }))} placeholder="ex: 26" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>pH ideal</label>
-            <input value={createForm.ph_medio_diario} onChange={(e) => setCreateForm(f => ({ ...f, ph_medio_diario: e.target.value }))} placeholder="ex: 7.5" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-          </div>
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Amônia ideal (mg/L)</label>
-            <input value={createForm.amonia_media_diaria} onChange={(e) => setCreateForm(f => ({ ...f, amonia_media_diaria: e.target.value }))} placeholder="ex: 0.05" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-          </div>
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Imagem do cativeiro</label>
-            <input type="file" accept="image/*" onChange={(e) => setCreateForm(f => ({ ...f, fotoFile: e.target.files?.[0] || null }))} style={{ width: '100%' }} />
-          </div>
-          <div style={{ gridColumn: 'span 2', borderTop: '1px solid #eee', paddingTop: 8 }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Dieta (opcional)</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="checkbox" checked={createForm.dietaAtivar} onChange={(e) => setCreateForm(f => ({ ...f, dietaAtivar: e.target.checked }))} />
-                Ativar dieta na criação
-              </label>
+      {/* Modal de confirmação de mudança de role */}
+      {pendingRoleChange && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => setPendingRoleChange(null)}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 28px 24px', maxWidth: 400, width: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '1.05rem', fontWeight: 700, color: '#1e293b' }}>Alterar permissão</h3>
+            <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '0 0 18px' }} />
+            <p style={{ margin: '0 0 20px', fontSize: '0.9rem', color: '#475569', lineHeight: 1.6 }}>
+              Tem certeza que deseja alterar a permissão de <strong style={{ color: '#1e293b' }}>{pendingRoleChange.userName}</strong> de <strong style={{ color: '#1e293b' }}>{pendingRoleChange.currentRole}</strong> para <strong style={{ color: '#1e293b' }}>{pendingRoleChange.newRole}</strong>?
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setPendingRoleChange(null)}
+                style={{ padding: '8px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#374151', fontFamily: 'Poppins, sans-serif', fontSize: '0.855rem', fontWeight: 500, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => { await changeRole(pendingRoleChange.userId, pendingRoleChange.newRole); setPendingRoleChange(null); }}
+                style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)', color: '#0f172a', fontFamily: 'Poppins, sans-serif', fontSize: '0.855rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Confirmar
+              </button>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', opacity: createForm.dietaAtivar ? 1 : 0.6 }}>
-              <input disabled={!createForm.dietaAtivar} value={createForm.dietaDescricao} onChange={(e) => setCreateForm(f => ({ ...f, dietaDescricao: e.target.value }))} placeholder="Descrição" style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-              <input disabled={!createForm.dietaAtivar} type="number" step="0.01" value={createForm.dietaQuantidade} onChange={(e) => setCreateForm(f => ({ ...f, dietaQuantidade: e.target.value }))} placeholder="Quantidade (g)" style={{ width: 160, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-            </div>
-          </div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-            <button onClick={() => setShowCreateModal(false)} style={{ border: '1px solid #e5e7eb', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Cancelar</button>
-            <button onClick={submitCreateModal} style={{ border: 'none', background: '#10b981', color: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Criar</button>
           </div>
         </div>
-      </Modal>
+      )}
+
+      {/* Modal de criação de fazenda */}
+      {showCreateFazendaModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 8, width: '95%', maxWidth: 480 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Nova fazenda</h3>
+            <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '0 0 16px 0' }} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Nome</label>
+                <input value={newFazendaForm.nome} onChange={e => setNewFazendaForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome da fazenda" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Rua</label>
+                <input value={newFazendaForm.rua} onChange={e => setNewFazendaForm(f => ({ ...f, rua: e.target.value }))} placeholder="Rua" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Bairro</label>
+                <input value={newFazendaForm.bairro} onChange={e => setNewFazendaForm(f => ({ ...f, bairro: e.target.value }))} placeholder="Bairro" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Cidade</label>
+                <input value={newFazendaForm.cidade} onChange={e => setNewFazendaForm(f => ({ ...f, cidade: e.target.value }))} placeholder="Cidade" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Número</label>
+                <input value={newFazendaForm.numero} onChange={e => setNewFazendaForm(f => ({ ...f, numero: e.target.value }))} placeholder="Número" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }} />
+              </div>
+              {(() => {
+                const allAdmins = (users || []).filter(u => u.role === 'admin');
+                if (allAdmins.length === 0) return null;
+                return (
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Admin responsável</label>
+                    <select
+                      value={newFazendaForm.adminId}
+                      onChange={e => setNewFazendaForm(f => ({ ...f, adminId: e.target.value }))}
+                      style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6, boxSizing: 'border-box' }}
+                    >
+                      <option value="">Sem admin responsável (opcional)</option>
+                      {allAdmins.map(a => (
+                        <option key={a.id || a._id} value={a.id || a._id}>{a.nome} — {a.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button onClick={() => setShowCreateFazendaModal(false)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Cancelar</button>
+              <button
+                onClick={handleCreateFazenda}
+                disabled={!newFazendaForm.nome || !newFazendaForm.rua || !newFazendaForm.bairro || !newFazendaForm.cidade || !newFazendaForm.numero}
+                style={{ border: 'none', background: '#3b82f6', color: '#fff', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 600 }}
+              >Criar fazenda</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de criação de cativeiro */}
+      {showCreateModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 8, width: '95%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Criar cativeiro</h3>
+            <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '0 0 16px 0' }} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Fazenda</label>
+                <select value={createForm.fazendaId} onChange={(e) => setCreateForm(f => ({ ...f, fazendaId: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+                  {fazendas.map(f => (
+                    <option key={f._id} value={f._id}>{getFazendaName(f._id)}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Nome</label>
+                <input value={createForm.nome} onChange={(e) => setCreateForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome do cativeiro" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Tipo de camarão</label>
+                <select value={createForm.id_tipo_camarao} onChange={(e) => setCreateForm(f => ({ ...f, id_tipo_camarao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+                  {tiposCamarao.map(t => (
+                    <option key={t._id} value={t._id}>{t.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Data de instalação</label>
+                <input type="date" value={createForm.data_instalacao} onChange={(e) => setCreateForm(f => ({ ...f, data_instalacao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Temp ideal (°C)</label>
+                <input value={createForm.temp_media_diaria} onChange={(e) => setCreateForm(f => ({ ...f, temp_media_diaria: e.target.value }))} placeholder="ex: 26" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>pH ideal</label>
+                <input value={createForm.ph_medio_diario} onChange={(e) => setCreateForm(f => ({ ...f, ph_medio_diario: e.target.value }))} placeholder="ex: 7.5" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Amônia ideal (mg/L)</label>
+                <input value={createForm.amonia_media_diaria} onChange={(e) => setCreateForm(f => ({ ...f, amonia_media_diaria: e.target.value }))} placeholder="ex: 0.05" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Imagem do cativeiro</label>
+                <input type="file" accept="image/*" onChange={(e) => setCreateForm(f => ({ ...f, fotoFile: e.target.files?.[0] || null }))} style={{ width: '100%' }} />
+              </div>
+              <div style={{ gridColumn: 'span 2', borderTop: '1px solid #eee', paddingTop: 8 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Dieta (opcional)</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="checkbox" checked={createForm.dietaAtivar} onChange={(e) => setCreateForm(f => ({ ...f, dietaAtivar: e.target.checked }))} />
+                    Ativar dieta na criação
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', opacity: createForm.dietaAtivar ? 1 : 0.6 }}>
+                  <input disabled={!createForm.dietaAtivar} value={createForm.dietaDescricao} onChange={(e) => setCreateForm(f => ({ ...f, dietaDescricao: e.target.value }))} placeholder="Descrição" style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+                  <input disabled={!createForm.dietaAtivar} type="number" step="0.01" value={createForm.dietaQuantidade} onChange={(e) => setCreateForm(f => ({ ...f, dietaQuantidade: e.target.value }))} placeholder="Quantidade (g)" style={{ width: 160, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button onClick={() => setShowCreateModal(false)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={submitCreateModal} style={{ border: 'none', background: '#10b981', color: '#fff', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 600 }}>Criar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Modal de edição de cativeiro */}
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Editar cativeiro">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1908,6 +2100,28 @@ export default function MasterPanel() {
               Confirmar Aprovação
             </button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showLogoutModal} onClose={() => !isLoggingOut && setShowLogoutModal(false)} title="Sair da conta" closeOnBackdropClick={!isLoggingOut}>
+        <p style={{ margin: 0, fontSize: '0.95rem', color: '#4b5563', fontFamily: 'Poppins, sans-serif', lineHeight: 1.5 }}>
+          Tem certeza que deseja sair? Você precisará fazer login novamente para acessar o sistema.
+        </p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+          <button
+            onClick={() => setShowLogoutModal(false)}
+            disabled={isLoggingOut}
+            style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#f9fafb', color: '#374151', fontSize: '0.9rem', fontFamily: 'Poppins, sans-serif', fontWeight: 500, cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.5 : 1 }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={confirmLogout}
+            disabled={isLoggingOut}
+            style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: '#ef4444', color: '#fff', fontSize: '0.9rem', fontFamily: 'Poppins, sans-serif', fontWeight: 500, cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.7 : 1, minWidth: 80 }}
+          >
+            {isLoggingOut ? 'Saindo...' : 'Sair'}
+          </button>
         </div>
       </Modal>
     </div>

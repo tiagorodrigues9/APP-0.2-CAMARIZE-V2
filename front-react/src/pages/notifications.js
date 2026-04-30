@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import NavBottom from "../components/NavBottom";
+import MemberLayout from "../components/MemberLayout";
 import axios from "axios";
 
 export default function NotificationsPage() {
@@ -81,69 +81,8 @@ export default function NotificationsPage() {
     }
   };
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#fff',
-      padding: 0,
-      margin: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      paddingBottom: '80px' // Espaço para o NavBottom
-    }}>
-      <div style={{ 
-        maxWidth: 600, 
-        margin: '0 auto', 
-        padding: '24px 16px', 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column',
-        width: '100%',
-        boxSizing: 'border-box'
-      }}>
-        <div style={{ position: 'relative', marginBottom: 16 }}>
-          <button 
-            style={{ 
-              position: 'absolute',
-              left: 0,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              background: 'none', 
-              border: 'none', 
-              fontSize: 24, 
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '4px',
-              transition: 'background-color 0.2s',
-              zIndex: 1
-            }} 
-            onClick={() => window.history.back()}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = 'rgba(0,0,0,0.05)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = 'transparent';
-            }}
-            title="Voltar"
-          >
-            &larr;
-          </button>
-          <h2 style={{ textAlign: 'center', margin: 0, fontWeight: 600, fontSize: '1.35rem', padding: '8px 0' }}>Notificações</h2>
-        </div>
-        
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '18px 0 24px 0' }}>
-          <button style={{
-            background: '#f5f5f5',
-            border: 'none',
-            borderRadius: 16,
-            padding: '8px 24px',
-            fontWeight: 600,
-            fontSize: 16,
-            color: '#333',
-            cursor: 'default'
-          }}>Hoje</button>
-        </div>
-        
-        {loading ? (
+    <MemberLayout title="Notificações" subtitle="Alertas e avisos dos seus cativeiros">
+      {loading ? (
           <div style={{ 
             display: 'flex', 
             flexDirection: 'column', 
@@ -242,25 +181,24 @@ export default function NotificationsPage() {
             </div>
             
             {notifications.length === 0 && (
-              <div style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                padding: '48px 24px',
-                color: '#888',
-                textAlign: 'center'
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '56px 24px',
+                color: '#94a3b8',
+                textAlign: 'center',
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 12,
               }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔔</div>
-                <div style={{ fontSize: '18px', fontWeight: 500, marginBottom: '8px' }}>Nenhuma notificação</div>
-                <div style={{ fontSize: '14px' }}>Você está em dia com suas notificações</div>
+                <div style={{ fontSize: '42px', marginBottom: '12px', opacity: 0.4 }}>🔔</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>Nenhuma notificação</div>
               </div>
             )}
           </>
         )}
-      </div>
-      
-      <NavBottom />
-    </div>
+    </MemberLayout>
   );
 } 

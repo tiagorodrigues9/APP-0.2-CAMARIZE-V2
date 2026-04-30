@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import axios from 'axios';
 import Modal from '../../components/Modal';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/hooks/useAuth';
 import { FaUserCircle } from 'react-icons/fa';
+import { HiOutlineClipboardList, HiOutlineBell, HiOutlineOfficeBuilding, HiOutlineUsers, HiOutlineChatAlt2 } from 'react-icons/hi';
+import styles from '../../styles/panel.module.css';
 
 const CreatableSelect = dynamic(() => import('react-select/creatable'), { ssr: false });
 
 export default function AdminPanel() {
   const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const router = useRouter();
   const [initialTabApplied, setInitialTabApplied] = useState(false);
   const [items, setItems] = useState([]);
   const [allRequests, setAllRequests] = useState([]);
@@ -93,6 +97,30 @@ export default function AdminPanel() {
     ph_medio_diario: '',
     amonia_media_diaria: ''
   });
+
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      if (token) {
+        await fetch('/api/users/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {
+      // prossegue com logout local mesmo se a requisição falhar
+    } finally {
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('usuarioCamarize');
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuarioCamarize');
+      window.location.href = '/login';
+    }
+  };
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   const getToken = () => (typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null);
@@ -189,6 +217,15 @@ export default function AdminPanel() {
       load();
     }
   }, [authLoading, isAuthenticated]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) { router.replace('/login'); return; }
+    const role = user?.role || (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')?.role) : null);
+    if (!role) return;
+    if (role === 'master') { router.replace('/master'); return; }
+    if (role !== 'admin') { router.replace('/login'); }
+  }, [authLoading, isAuthenticated, user]);
 
   // Respeitar query ?tab=... para abrir diretamente a aba correspondente
   useEffect(() => {
@@ -747,67 +784,80 @@ export default function AdminPanel() {
 
   const localRole = typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')?.role) : undefined;
   const effectiveRole = user?.role || localRole;
-  if (authLoading || loading) return <div style={{ padding: 20 }}>Carregando...</div>;
-  if (!isAuthenticated) return <div style={{ padding: 20, color: 'red' }}>Sessão expirada. Faça login novamente.</div>;
-  if (!effectiveRole) return <div style={{ padding: 20 }}>Carregando permissões...</div>;
-  if (effectiveRole !== 'admin' && effectiveRole !== 'master') return <div style={{ padding: 20, color: 'red' }}>Acesso restrito ao Admin.</div>;
-  if (error) return <div style={{ padding: 20, color: 'red' }}>{error}</div>;
+  if (authLoading || loading || !isAuthenticated || !effectiveRole || effectiveRole !== 'admin') return <div className={styles.loadingScreen}>Carregando...</div>;
+  if (error) return <div className={styles.loadingScreen} style={{ color: '#ef4444' }}>{error}</div>;
+
+  const adminNavItems = [
+    { id: 'requests', icon: HiOutlineClipboardList, label: 'Requests', badge: items.length || null },
+    { id: 'solicitacoes', icon: HiOutlineBell, label: 'Solicitações' },
+    { id: 'cativeiros', icon: HiOutlineOfficeBuilding, label: 'Cativeiros' },
+    { id: 'funcionarios', icon: HiOutlineUsers, label: 'Funcionários' },
+    { id: 'chat', icon: HiOutlineChatAlt2, label: 'Chat' },
+  ];
+
+  const adminPageTitles = {
+    requests: ['Requests', 'Histórico de ações dos funcionários'],
+    solicitacoes: ['Solicitações', 'Aprovações pendentes de funcionários'],
+    cativeiros: ['Fazendas & Cativeiros', 'Gerencie suas fazendas e cativeiros'],
+    funcionarios: ['Funcionários', 'Equipe associada à sua fazenda'],
+    chat: ['Chat com Masters', 'Comunicação com os masters do sistema'],
+  };
 
   return (
-    <div style={{ padding: 20 }}>
+    <div className={styles.layout}>
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleCativeiroFileChange} />
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h2>Painel do Admin</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {user?.nome && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem', color: '#666' }}>
-              <FaUserCircle size={18} color="#a3c7f7" />
-              Olá, {user.nome}
-            </span>
-          )}
-          <button
-            onClick={() => {
-              try {
-                sessionStorage.removeItem('token');
-                sessionStorage.removeItem('usuarioCamarize');
-                localStorage.removeItem('token');
-                localStorage.removeItem('usuarioCamarize');
-              } catch {}
-              window.location.href = '/login';
-            }}
-            style={{ border: '1px solid #eee', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}
-            title="Sair"
-          >
-            Sair
+
+      {/* SIDEBAR */}
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarHeader}>
+          <img src="/images/logo.svg" className={styles.sidebarLogo} alt="Logo" />
+          <div className={styles.sidebarRole}>Painel Admin</div>
+        </div>
+        <nav className={styles.sidebarNav}>
+          {adminNavItems.map(({ id, icon: Icon, label, badge }) => (
+            <button
+              key={id}
+              className={`${styles.navItem} ${tab === id ? styles.navItemActive : ''}`}
+              onClick={() => { setTab(id); if (id === 'chat') loadConversationsOnce(); }}
+            >
+              <Icon className={styles.navIcon} />
+              <span className={styles.navLabel}>{label}</span>
+              {badge > 0 && <span className={styles.navBadge}>{badge}</span>}
+            </button>
+          ))}
+        </nav>
+        <div className={styles.sidebarFooter}>
+          <div className={styles.userCard}>
+            <div className={styles.userAvatar}>{user?.nome?.[0]?.toUpperCase() || 'A'}</div>
+            <div className={styles.userInfo}>
+              <div className={styles.userName}>{user?.nome || 'Admin'}</div>
+              <div className={styles.userRoleBadge}>Administrador</div>
+            </div>
+          </div>
+          <button className={styles.sidebarLogoutBtn} onClick={() => setShowLogoutModal(true)}>
+            Sair da conta
           </button>
         </div>
-      </div>
-      <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
-        <button onClick={() => setTab('requests')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='requests'?'#eef':'#fff' }}>Requests</button>
-        <button onClick={() => setTab('solicitacoes')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='solicitacoes'?'#eef':'#fff' }}>Solicitações</button>
-        <button onClick={() => setTab('cativeiros')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='cativeiros'?'#eef':'#fff' }}>Cativeiros</button>
-        <button onClick={() => setTab('funcionarios')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='funcionarios'?'#eef':'#fff' }}>Funcionários</button>
-        <button onClick={() => { setTab('chat'); loadConversationsOnce(); }} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: tab==='chat'?'#eef':'#fff' }}>Chat</button>
-      </div>
+      </aside>
+
+      {/* MAIN */}
+      <div className={styles.main}>
+        <header className={styles.topBar}>
+          <h1 className={styles.pageTitle}>{(adminPageTitles[tab] || [''])[0]}</h1>
+          <p className={styles.pageSubtitle}>{(adminPageTitles[tab] || ['', ''])[1]}</p>
+        </header>
+        <div className={styles.content}>
 
       {tab === 'requests' && (
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Histórico de Requests dos Funcionários</h3>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Histórico de Requests dos Funcionários</h2>
             <button
               onClick={() => {
                 setFuncionarioEmail('');
                 setShowAssociarFuncionarioModal(true);
               }}
-              style={{
-                background: '#10b981',
-                color: '#fff',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
+              className={`${styles.btn} ${styles.btnSuccess}`}
             >
               Associar Funcionário à Fazenda
             </button>
@@ -869,7 +919,7 @@ export default function AdminPanel() {
           )}
 
           {filteredRequests.map(item => (
-            <div key={item._id} style={{ border: '1px solid #eee', padding: 12, marginBottom: 10, borderRadius: 6, background: item.status === 'aprovado' ? '#f0fdf4' : item.status === 'recusado' ? '#fef2f2' : '#fff' }}>
+            <div key={item._id} className={`${styles.card} ${item.status === 'aprovado' ? styles.cardApproved : item.status === 'recusado' ? styles.cardRejected : styles.cardPending}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div>
                   <strong>Solicitante:</strong> {(item.requesterUser?.nome || item.requester?.nome || 'N/A')} ({item.requesterUser?.email || item.requester?.email || 'N/A'})
@@ -896,11 +946,11 @@ export default function AdminPanel() {
       )}
 
       {tab === 'solicitacoes' && (
-        <section>
+        <section className={styles.section}>
           <h3>Solicitações leves dos funcionários</h3>
-          {items.length === 0 && <div>Nenhuma solicitação pendente.</div>}
+          {items.length === 0 && <div className={styles.emptyState}><p className={styles.emptyStateText}>Nenhuma solicitação pendente.</p></div>}
           {items.map(item => (
-            <div key={item._id} style={{ border: '1px solid #eee', padding: 12, marginBottom: 10, borderRadius: 6 }}>
+            <div key={item._id} className={styles.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div><b>Solicitante:</b> {(item.requesterUser?.nome || item.requester?.nome || 'N/A')} ({item.requesterUser?.email || item.requester?.email || 'N/A'})</div>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>{new Date(item.createdAt).toLocaleString('pt-BR')}</div>
@@ -915,13 +965,13 @@ export default function AdminPanel() {
               <div>
                 <button 
                   onClick={() => applyAndApprove(item)}
-                  style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', marginRight: 8 }}
+                  className={`${styles.btn} ${styles.btnSuccess} ${styles.btnSm}`} style={{ marginRight: 8 }}
                 >
                   Aplicar e Aprovar
                 </button>
                 <button 
                   onClick={() => act(item._id, 'reject')}
-                  style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer' }}
+                  className={`${styles.btn} ${styles.btnDanger} ${styles.btnSm}`}
                 >
                   Recusar
                 </button>
@@ -932,9 +982,9 @@ export default function AdminPanel() {
       )}
 
       {tab === 'cativeiros' && (
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Fazendas e Cativeiros</h3>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Fazendas e Cativeiros</h2>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => setShowAssociarFuncionarioModal(true)}
@@ -967,10 +1017,10 @@ export default function AdminPanel() {
             </div>
           </div>
           {Object.entries(groupedByFazenda()).map(([fzId, cats]) => (
-            <div key={fzId} style={{ border: '1px solid #eee', borderRadius: 8, marginBottom: 10 }}>
+            <div key={fzId} className={styles.accordion}>
               <div
                 onClick={() => setExpandedFazenda(prev => ({ ...prev, [fzId]: !prev[fzId] }))}
-                style={{ padding: 10, cursor: 'pointer', background: '#f9fafb', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}
+                className={`${styles.accordionHeader} ${expandedFazenda[fzId] ? styles.accordionHeaderOpen : ''}`}
               >
                 <span>{getFazendaName(fzId)}</span>
                 <span>{expandedFazenda[fzId] ? '▲' : '▼'}</span>
@@ -979,7 +1029,7 @@ export default function AdminPanel() {
                 <div style={{ padding: 10 }}>
                   {cats.length === 0 && <div style={{ color: '#888' }}>Nenhum cativeiro nesta fazenda.</div>}
                   {cats.map(cativeiro => (
-                    <div key={cativeiro._id} style={{ border: '1px solid #eee', borderRadius: 6, marginBottom: 8, overflow: 'hidden' }}>
+                    <div key={cativeiro._id} className={styles.subAccordion}>
                       <div
                         onClick={() => {
                           const willExpand = !expandedCativeiro[cativeiro._id];
@@ -993,7 +1043,7 @@ export default function AdminPanel() {
                             }
                           }
                         }}
-                        style={{ padding: 8, cursor: 'pointer', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                        className={`${styles.subAccordionHeader} ${expandedCativeiro[cativeiro._id] ? styles.subAccordionHeaderOpen : ''}`}
                       >
                         <span>{cativeiro.nome || cativeiro._id}</span>
                         <span>{expandedCativeiro[cativeiro._id] ? '▲' : '▼'}</span>
@@ -1427,9 +1477,9 @@ export default function AdminPanel() {
       )}
 
       {tab === 'funcionarios' && (
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3>Funcionários Associados à Fazenda</h3>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Funcionários Associados à Fazenda</h2>
             <button
               onClick={() => {
                 setFuncionarioEmail('');
@@ -1462,19 +1512,11 @@ export default function AdminPanel() {
               </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
               {funcionarios.map((funcionario) => (
                 <div
                   key={funcionario.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '16px',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 8,
-                    background: '#fff'
-                  }}
+                  className={styles.funcionarioCard}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                     {/* Foto do perfil ou inicial */}
@@ -1619,11 +1661,11 @@ export default function AdminPanel() {
       )}
 
       {tab === 'chat' && (
-        <section>
+        <section className={styles.section}>
           <h3>Chat com Masters</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 12, alignItems: 'stretch' }}>
-            <div style={{ border: '1px solid #eee', borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ padding: 8, background: '#f9fafb', borderBottom: '1px solid #eee', fontWeight: 600 }}>Conversas</div>
+          <div className={styles.chatLayout}>
+            <div className={styles.chatSidebar}>
+              <div className={styles.chatSidebarHeader}>Conversas</div>
               <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflow: 'auto' }}>
                 {chatConversations.length === 0 && <div style={{ color: '#888' }}>Nenhuma conversa.</div>}
                 {chatConversations.map(c => (
@@ -1684,6 +1726,9 @@ export default function AdminPanel() {
           </div>
         </section>
       )}
+
+        </div>{/* /content */}
+      </div>{/* /main */}
 
       {showSwapModal && (
         <div style={{
@@ -2219,6 +2264,28 @@ export default function AdminPanel() {
               {associarFuncionarioLoading ? 'Associando...' : 'Associar Funcionário'}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showLogoutModal} onClose={() => !isLoggingOut && setShowLogoutModal(false)} title="Sair da conta" closeOnBackdropClick={!isLoggingOut}>
+        <p style={{ margin: 0, fontSize: '0.95rem', color: '#4b5563', fontFamily: 'Poppins, sans-serif', lineHeight: 1.5 }}>
+          Tem certeza que deseja sair? Você precisará fazer login novamente para acessar o sistema.
+        </p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+          <button
+            onClick={() => setShowLogoutModal(false)}
+            disabled={isLoggingOut}
+            style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#f9fafb', color: '#374151', fontSize: '0.9rem', fontFamily: 'Poppins, sans-serif', fontWeight: 500, cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.5 : 1 }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={confirmLogout}
+            disabled={isLoggingOut}
+            style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: '#ef4444', color: '#fff', fontSize: '0.9rem', fontFamily: 'Poppins, sans-serif', fontWeight: 500, cursor: isLoggingOut ? 'not-allowed' : 'pointer', opacity: isLoggingOut ? 0.7 : 1, minWidth: 80 }}
+          >
+            {isLoggingOut ? 'Saindo...' : 'Sair'}
+          </button>
         </div>
       </Modal>
     </div>

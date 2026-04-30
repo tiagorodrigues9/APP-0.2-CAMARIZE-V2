@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import Notification from '../components/Notification';
 import AuthError from '../components/AuthError';
 import Loading from '../components/Loading';
-import NavBottom from '../components/NavBottom';
+import MemberLayout from '../components/MemberLayout';
 import styles from './sensores.module.css';
 import RequestButton from '../components/RequestButton';
 
@@ -256,22 +256,26 @@ export default function SensoresPage() {
 
   // Se há erro, mostrar tela de erro
   if (error) {
-    return <AuthError error={error} onRetry={() => window.location.reload()} />;
+    return (
+      <MemberLayout title="Sensores" subtitle="Gerencie os sensores conectados aos cativeiros">
+        <AuthError error={error} onRetry={() => window.location.reload()} />
+      </MemberLayout>
+    );
   }
 
   // Se está carregando, mostrar loading
   if (loading) {
-    return <Loading message="Carregando sensores..." />;
+    return (
+      <MemberLayout title="Sensores" subtitle="Gerencie os sensores conectados aos cativeiros">
+        <Loading message="Carregando sensores..." />
+      </MemberLayout>
+    );
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ 
-        width: '100%', 
-        maxWidth: 600, 
-        padding: '16px', 
-        margin: '0 auto', 
-        flex: 1, 
+    <MemberLayout title="Sensores" subtitle="Gerencie os sensores conectados aos cativeiros">
+      <div style={{
+        width: '100%',
         display: 'flex', 
         flexDirection: 'column',
         boxSizing: 'border-box'
@@ -599,8 +603,6 @@ export default function SensoresPage() {
         </div>
       )}
 
-      {/* NavBottom */}
-      <NavBottom />
-    </div>
+    </MemberLayout>
   );
 } 

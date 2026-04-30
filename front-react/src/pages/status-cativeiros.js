@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import axios from "axios";
-import NavBottom from "../components/NavBottom";
+import MemberLayout from "../components/MemberLayout";
 import Loading from "../components/Loading";
 import styles from "./status-cativeiros.module.css";
 
@@ -150,39 +150,35 @@ export default function StatusCativeirosPage() {
   const hasAnyAtualizacao = cativeirosStatus.some(c => !!c.ultimaAtualizacao);
 
   if (loading) {
-    return <Loading message="Carregando status dos cativeiros..." />;
+    return (
+      <MemberLayout title="Status dos Cativeiros" subtitle="Visão geral de saúde de cada cativeiro">
+        <Loading message="Carregando status dos cativeiros..." />
+      </MemberLayout>
+    );
   }
 
   if (error) {
     return (
-      <div className={styles.errorContainer}>
-        <div className={styles.errorContent}>
-          <div className={styles.errorIcon}>❌</div>
-          <h2>Erro ao carregar</h2>
-          <p>{error}</p>
-          <button 
-            className={styles.retryButton}
-            onClick={fetchCativeirosStatus}
-          >
-            Tentar novamente
-          </button>
+      <MemberLayout title="Status dos Cativeiros" subtitle="Visão geral de saúde de cada cativeiro">
+        <div className={styles.errorContainer}>
+          <div className={styles.errorContent}>
+            <div className={styles.errorIcon}>❌</div>
+            <h2>Erro ao carregar</h2>
+            <p>{error}</p>
+            <button
+              className={styles.retryButton}
+              onClick={fetchCativeirosStatus}
+            >
+              Tentar novamente
+            </button>
+          </div>
         </div>
-      </div>
+      </MemberLayout>
     );
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <button 
-          className={styles.backButton}
-          onClick={() => router.back()}
-        >
-          ← Voltar
-        </button>
-        <h1>Status dos Cativeiros</h1>
-      </div>
-
+    <MemberLayout title="Status dos Cativeiros" subtitle="Visão geral de saúde de cada cativeiro">
       <div className={styles.content}>
         {/* Resumo */}
         <div className={styles.summary}>
@@ -445,7 +441,6 @@ export default function StatusCativeirosPage() {
           </div>
         )}
       </div>
-      <NavBottom />
-    </div>
+    </MemberLayout>
   );
 } 

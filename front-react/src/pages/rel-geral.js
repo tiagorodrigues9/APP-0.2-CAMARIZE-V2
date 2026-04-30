@@ -3,8 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import AuthError from "../components/AuthError";
 import Loading from "../components/Loading";
-import profileStyles from "../components/ProfileContent/ProfileContent.module.css";
-import NavBottom from "@/components/NavBottom";
+import MemberLayout from "@/components/MemberLayout";
 
 export default function RelatorioGeral() {
   const router = useRouter();
@@ -78,32 +77,12 @@ export default function RelatorioGeral() {
     }
   };
 
-  // Se há erro, mostrar tela de erro
-  if (error) {
-    return (
-      <>
-        <AuthError error={error} onRetry={() => window.location.reload()} />
-        <NavBottom />
-      </>
-    );
-  }
-
-  // Se está carregando, mostrar loading
-  if (loading) {
-    return (
-      <>
-        <Loading message="Carregando relatório..." />
-        <NavBottom />
-      </>
-    );
-  }
+  if (error) return <AuthError error={error} onRetry={() => window.location.reload()} />;
+  if (loading) return <Loading message="Carregando relatório..." />;
 
   return (
-    <div style={{ minHeight: '100vh', overflowY: 'auto', paddingBottom: '100px' }}>
-      <div style={{ maxWidth: 800, margin: '40px auto', background: '#fff', padding: 24, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', position: 'relative' }}>
-      <button className={profileStyles.backBtn} onClick={() => window.history.back()} style={{ position: 'absolute', top: 16, left: 16 }}>
-        <span style={{ fontSize: 24, lineHeight: 1 }}>&larr;</span>
-      </button>
+    <MemberLayout title="Relatório Geral" subtitle={`Período: ${periodo || '...'}`}>
+      <div style={{ maxWidth: 800, background: '#fff', padding: 24, borderRadius: 12, border: '1px solid #e2e8f0', position: 'relative' }}>
       <div ref={relatorioRef}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
           <img src="/images/logo.svg" alt="Camarize Logo" style={{ height: 48, marginBottom: 8 }} />
@@ -132,8 +111,7 @@ export default function RelatorioGeral() {
           Salvar como PDF
         </button>
       </div>
-      <NavBottom />
-    </div>
-    </div>
+      </div>
+    </MemberLayout>
   );
 } 
