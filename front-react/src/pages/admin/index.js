@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { FaUserCircle } from 'react-icons/fa';
 import { HiOutlineClipboardList, HiOutlineBell, HiOutlineOfficeBuilding, HiOutlineUsers, HiOutlineChatAlt2 } from 'react-icons/hi';
 import styles from '../../styles/panel.module.css';
+import Notification from '../../components/Notification';
 
 const CreatableSelect = dynamic(() => import('react-select/creatable'), { ssr: false });
 
@@ -50,6 +51,8 @@ export default function AdminPanel() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatText, setChatText] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [showDeleteConvModal, setShowDeleteConvModal] = useState(false);
+  const [adminNotification, setAdminNotification] = useState({ show: false, message: '', type: 'success' });
   const chatEndRef = useRef(null);
 
   const getMyId = () => {
@@ -1662,22 +1665,43 @@ export default function AdminPanel() {
 
       {tab === 'chat' && (
         <section className={styles.section}>
-          <h3>Chat com Masters</h3>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2 className={styles.sectionTitle}>Chat com Masters</h2>
+              <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                {chatConversations.length} conversa{chatConversations.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
           <div className={styles.chatLayout}>
+            {/* Sidebar de conversas */}
             <div className={styles.chatSidebar}>
               <div className={styles.chatSidebarHeader}>Conversas</div>
-              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflow: 'auto' }}>
-                {chatConversations.length === 0 && <div style={{ color: '#888' }}>Nenhuma conversa.</div>}
-                {chatConversations.map(c => (
-                  <button key={c._id} onClick={() => openConversation(c._id)} style={{ textAlign: 'left', border: '1px solid #e5e7eb', background: chatSelectedId===c._id?'#eef':'#fff', borderRadius: 6, padding: '8px' }}>
-                    <div style={{ fontWeight: 600 }}>{getConversationTitle(c)}</div>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>{new Date(c.updatedAt || c.lastMessageAt).toLocaleString('pt-BR')}</div>
-                  </button>
-                ))}
+              <div className={styles.chatConvList}>
+                {chatConversations.length === 0 ? (
+                  <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '0.82rem' }}>Nenhuma conversa ainda.</div>
+                ) : (
+                  chatConversations.map(c => (
+                    <button
+                      key={c._id}
+                      onClick={() => openConversation(c._id)}
+                      className={`${styles.chatConvItem} ${chatSelectedId === c._id ? styles.chatConvItemActive : ''}`}
+                    >
+                      <div className={styles.chatConvTitle}>{getConversationTitle(c)}</div>
+                      <div className={styles.chatConvTime}>
+                        {new Date(c.updatedAt || c.lastMessageAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
-              <div style={{ padding: 8, borderTop: '1px solid #eee' }}>
-                <label style={{ display: 'block', fontSize: 12, color: '#6b7280' }}>Iniciar com Master</label>
-                <select onChange={(e) => { const val = e.target.value; if (val) { startConversationWithMaster(val); e.target.value=''; } }} style={{ width: '100%', padding: 6, border: '1px solid #ddd', borderRadius: 6 }}>
+              <div className={styles.chatStartSection}>
+                <div className={styles.chatStartLabel}>Nova conversa</div>
+                <select
+                  onChange={(e) => { const val = e.target.value; if (val) { startConversationWithMaster(val); e.target.value = ''; } }}
+                  className={styles.formSelect}
+                  style={{ width: '100%' }}
+                >
                   <option value="">Selecione um master...</option>
                   {(users || []).filter(u => u.role === 'master').map(u => (
                     <option key={u.id || u._id} value={u.id || u._id}>{u.nome || u.email}</option>
@@ -1685,42 +1709,90 @@ export default function AdminPanel() {
                 </select>
               </div>
             </div>
-            <div style={{ border: '1px solid #eee', borderRadius: 8, display: 'flex', flexDirection: 'column', height: '65vh', overflow: 'hidden' }}>
-              <div style={{ padding: 8, background: '#f9fafb', borderBottom: '1px solid #eee', fontWeight: 600 }}>Mensagens</div>
-              <div style={{ flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', overscrollBehavior: 'contain', scrollbarWidth: 'none' }}>
-                {chatLoading && <div style={{ color: '#888' }}>Carregando...</div>}
+
+            {/* Área principal */}
+            <div className={styles.chatMain}>
+              <div className={styles.chatMainHeader}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {chatSelectedId ? (
+                    <>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', color: '#1d4ed8', flexShrink: 0 }}>
+                        {(getConversationTitle(chatConversations.find(c => c._id === chatSelectedId) || {}) || '?')[0]?.toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#1e293b', lineHeight: 1.2 }}>
+                          {getConversationTitle(chatConversations.find(c => c._id === chatSelectedId) || {})}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Master</div>
+                      </div>
+                    </>
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Selecione uma conversa</span>
+                  )}
+                </div>
+                {chatSelectedId && (
+                  <button
+                    className={`${styles.btn} ${styles.btnSm}`}
+                    style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}
+                    onClick={() => setShowDeleteConvModal(true)}
+                    title="Excluir conversa"
+                  >
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    Excluir conversa
+                  </button>
+                )}
+              </div>
+
+              <div className={styles.chatMessages}>
+                {!chatSelectedId && (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                      <svg width="40" height="40" fill="none" viewBox="0 0 24 24" style={{ marginBottom: 8, opacity: 0.4 }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <p style={{ margin: 0, fontSize: '0.85rem' }}>Selecione uma conversa para começar</p>
+                    </div>
+                  </div>
+                )}
+                {chatLoading && <div style={{ color: '#94a3b8', fontSize: '0.82rem', textAlign: 'center' }}>Carregando mensagens...</div>}
                 {!chatLoading && chatSelectedId && chatMessages.map(m => {
                   const isMine = String(m.senderId) === String(getMyId());
                   return (
-                    <div key={m._id} style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
-                      <div style={{ fontSize: 11, color: '#6b7280', margin: isMine ? '0 4px 2px 0' : '0 0 2px 4px', textAlign: isMine ? 'right' : 'left' }}>
+                    <div key={m._id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}>
+                      <div className={`${styles.chatBubbleSender} ${isMine ? styles.chatBubbleSenderMine : ''}`}>
                         {getDisplayName(m.senderId)}
                       </div>
-                      <div style={{ background: isMine ? '#dbeafe' : '#f3f4f6', color: '#111827', border: '1px solid #e5e7eb', padding: '8px 10px', borderRadius: 10, borderTopRightRadius: isMine ? 2 : 10, borderTopLeftRadius: isMine ? 10 : 2 }}>
-                        <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.text}</div>
-                        <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4, textAlign: isMine ? 'right' : 'left' }}>{new Date(m.createdAt).toLocaleTimeString('pt-BR')}</div>
+                      <div className={`${styles.chatBubble} ${isMine ? styles.chatBubbleMine : styles.chatBubbleOther}`}>
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                        <div className={`${styles.chatBubbleTime} ${isMine ? styles.chatBubbleTimeMine : styles.chatBubbleTimeOther}`}>
+                          {new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
-                {!chatSelectedId && <div style={{ color: '#888' }}>Selecione uma conversa.</div>}
                 <div ref={chatEndRef} />
               </div>
-              <div style={{ padding: 8, borderTop: '1px solid #eee', display: 'flex', gap: 8 }}>
+
+              <div className={styles.chatInputArea}>
                 <textarea
                   value={chatText}
                   onChange={(e) => setChatText(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendChatMessage();
-                    }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
                   }}
-                  placeholder="Digite sua mensagem..."
+                  placeholder={chatSelectedId ? 'Digite sua mensagem... (Enter para enviar)' : 'Selecione uma conversa'}
                   rows={2}
-                  style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 6, resize: 'none' }}
+                  disabled={!chatSelectedId}
+                  className={styles.chatTextarea}
                 />
-                <button onClick={sendChatMessage} disabled={!chatSelectedId || !chatText.trim()} style={{ padding: '8px 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: (!chatSelectedId || !chatText.trim()) ? 'not-allowed' : 'pointer' }}>Enviar</button>
+                <button
+                  onClick={sendChatMessage}
+                  disabled={!chatSelectedId || !chatText.trim()}
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  style={{ alignSelf: 'flex-end', minWidth: 80 }}
+                >
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Enviar
+                </button>
               </div>
             </div>
           </div>
@@ -2266,6 +2338,43 @@ export default function AdminPanel() {
           </div>
         </div>
       </Modal>
+
+      <Modal isOpen={showDeleteConvModal} onClose={() => setShowDeleteConvModal(false)} title="Excluir conversa?" showCloseButton>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <p style={{ margin: 0, fontSize: '0.95rem', color: '#4b5563', lineHeight: 1.5 }}>
+            Tem certeza que deseja excluir esta conversa com <strong>{getConversationTitle(chatConversations.find(c => c._id === chatSelectedId) || {})}</strong>?
+            Todas as mensagens serão apagadas permanentemente.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => setShowDeleteConvModal(false)}>Cancelar</button>
+            <button
+              className={`${styles.btn}`}
+              style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+              onClick={async () => {
+                try {
+                  const token = getToken();
+                  await axios.delete(`${apiUrl}/chat/conversations/${chatSelectedId}`, { headers: { Authorization: `Bearer ${token}` } });
+                  setChatConversations(prev => prev.filter(c => c._id !== chatSelectedId));
+                  setChatSelectedId('');
+                  setChatMessages([]);
+                  setShowDeleteConvModal(false);
+                  setAdminNotification({ show: true, message: 'Conversa excluída com sucesso!', type: 'success' });
+                } catch (e) {
+                  setShowDeleteConvModal(false);
+                  setAdminNotification({ show: true, message: 'Erro ao excluir conversa: ' + (e?.response?.data?.error || e.message), type: 'error' });
+                }
+              }}
+            >Excluir</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Notification
+        isVisible={adminNotification.show}
+        message={adminNotification.message}
+        type={adminNotification.type}
+        onClose={() => setAdminNotification({ show: false, message: '', type: 'success' })}
+      />
 
       <Modal isOpen={showLogoutModal} onClose={() => !isLoggingOut && setShowLogoutModal(false)} title="Sair da conta" closeOnBackdropClick={!isLoggingOut}>
         <p style={{ margin: 0, fontSize: '0.95rem', color: '#4b5563', fontFamily: 'Poppins, sans-serif', lineHeight: 1.5 }}>

@@ -113,7 +113,20 @@ const loginUser = async (req, res) => {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
-    const senhaCorreta = await bcrypt.compare(senha, user.senha);
+    // Detecta se a senha armazenada é um hash bcrypt ou texto puro (banco legado)
+    const isBcryptHash = /^\$2[aby]\$/.test(user.senha);
+    let senhaCorreta = false;
+
+    if (isBcryptHash) {
+      senhaCorreta = await bcrypt.compare(senha, user.senha);
+    } else {
+      senhaCorreta = senha === user.senha;
+      if (senhaCorreta) {
+        // Migra a senha para bcrypt de forma transparente no primeiro login
+        await userService.updateUser(user._id, { senha });
+      }
+    }
+
     if (!senhaCorreta) {
       return res.status(401).json({ error: "Credenciais inválidas" });
     }
