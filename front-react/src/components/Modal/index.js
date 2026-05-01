@@ -88,10 +88,6 @@ export default function Modal({
 
   // Não renderiza nada se não estiver visível
   if (!isVisible) {
-    // Garante que o scroll seja restaurado quando o modal não estiver visível
-    if (document.body.style.overflow === 'hidden') {
-      document.body.style.overflow = '';
-    }
     return null;
   }
 
