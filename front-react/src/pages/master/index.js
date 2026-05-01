@@ -676,6 +676,16 @@ export default function MasterPanel() {
     return map[action] || action;
   };
 
+  const statusChipStyle = (status) => ({
+    padding: '4px 10px',
+    borderRadius: 999,
+    fontSize: '12px',
+    fontWeight: 500,
+    whiteSpace: 'nowrap',
+    background: status === 'aprovado' ? '#dcfce7' : status === 'recusado' ? '#fee2e2' : '#fef3c7',
+    color: status === 'aprovado' ? '#166534' : status === 'recusado' ? '#991b1b' : '#92400e',
+  });
+
   const changeRole = async (id, role) => {
     const token = getToken();
     await axios.patch(`${apiUrl}/users/${id}/role`, { role }, { headers: { Authorization: `Bearer ${token}` } });
@@ -909,8 +919,8 @@ export default function MasterPanel() {
   if (error) return <div className={styles.loadingScreen} style={{ color: '#ef4444' }}>{error}</div>;
 
   const masterNavItems = [
-    { id: 'requests', icon: HiOutlineClipboardList, label: 'Requests' },
-    { id: 'solicitacoes', icon: HiOutlineBell, label: 'Solicitações' },
+    { id: 'requests', icon: HiOutlineClipboardList, label: 'Histórico' },
+    { id: 'solicitacoes', icon: HiOutlineBell, label: 'Solicitações', badge: items.length || null },
     { id: 'usuarios', icon: HiOutlineUser, label: 'Usuários' },
     { id: 'cativeiros', icon: HiOutlineOfficeBuilding, label: 'Cativeiros' },
     { id: 'sensores', icon: HiOutlineChip, label: 'Sensores' },
@@ -919,7 +929,7 @@ export default function MasterPanel() {
   ];
 
   const masterPageTitles = {
-    requests: ['Requests', 'Histórico de ações dos admins'],
+    requests: ['Histórico', 'Histórico de ações dos admins'],
     solicitacoes: ['Solicitações', 'Aprovações pesadas pendentes'],
     usuarios: ['Usuários', 'Gestão de usuários e permissões'],
     cativeiros: ['Fazendas & Cativeiros', 'Visão geral de todas as fazendas'],
@@ -938,7 +948,7 @@ export default function MasterPanel() {
           <div className={styles.sidebarRole}>Painel Master</div>
         </div>
         <nav className={styles.sidebarNav}>
-          {masterNavItems.map(({ id, icon: Icon, label }) => (
+          {masterNavItems.map(({ id, icon: Icon, label, badge }) => (
             <button
               key={id}
               className={`${styles.navItem} ${tab === id ? styles.navItemActive : ''}`}
@@ -946,6 +956,7 @@ export default function MasterPanel() {
             >
               <Icon className={styles.navIcon} />
               <span className={styles.navLabel}>{label}</span>
+              {badge > 0 && <span className={styles.navBadge}>{badge}</span>}
             </button>
           ))}
         </nav>
@@ -973,19 +984,7 @@ export default function MasterPanel() {
 
       {tab === 'requests' && (
         <section className={styles.section}>
-          <h3>Histórico de Requests dos Admins</h3>
-          
-          {/* Filtros */}
-          <div style={{ 
-            display: 'flex', 
-            gap: 12, 
-            marginBottom: 16, 
-            padding: 12, 
-            background: '#f9fafb', 
-            borderRadius: 8,
-            alignItems: 'center',
-            flexWrap: 'wrap'
-          }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, padding: 12, background: '#f9fafb', borderRadius: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <label style={{ fontSize: '14px', fontWeight: '500' }}>Solicitante:</label>
               <input
@@ -993,28 +992,16 @@ export default function MasterPanel() {
                 placeholder="Nome ou email..."
                 value={requesterFilter}
                 onChange={(e) => setRequesterFilter(e.target.value)}
-                style={{ 
-                  padding: '6px 10px', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: 6, 
-                  fontSize: '14px',
-                  minWidth: '200px'
-                }}
+                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px', minWidth: '180px' }}
               />
             </div>
-            
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <label style={{ fontSize: '14px', fontWeight: '500' }}>Data:</label>
               <input
                 type="date"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                style={{ 
-                  padding: '6px 10px', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: 6, 
-                  fontSize: '14px'
-                }}
+                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px' }}
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1024,182 +1011,120 @@ export default function MasterPanel() {
                 placeholder="Ex: editar_cativeiro..."
                 value={actionFilter}
                 onChange={(e) => setActionFilter(e.target.value)}
-                style={{ 
-                  padding: '6px 10px', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: 6, 
-                  fontSize: '14px',
-                  minWidth: '200px'
-                }}
+                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px', minWidth: '180px' }}
               />
             </div>
-            
             <button
-              onClick={() => {
-                const today = new Date();
-                const todayString = today.toISOString().split('T')[0];
-                console.log('Data de hoje:', { today, todayString, day: today.getDate(), month: today.getMonth() + 1, year: today.getFullYear() });
-                setDateFilter(todayString);
-              }}
-              style={{
-                padding: '6px 12px',
-                background: '#3b82f6',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
+              onClick={() => setDateFilter(new Date().toISOString().split('T')[0])}
+              style={{ padding: '6px 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '14px' }}
             >
               Hoje
             </button>
-            
             <button
               onClick={() => { clearFilters(); setActionFilter(''); }}
-              style={{
-                padding: '6px 12px',
-                background: '#6b7280',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
+              style={{ padding: '6px 12px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '14px' }}
             >
               Limpar Filtros
             </button>
-            
             <div style={{ fontSize: '14px', color: '#6b7280' }}>
-              {filteredRequests.length} de {allRequests.length} requests
+              {filteredRequests.length} de {allRequests.length} registros
             </div>
           </div>
 
           {filteredRequests.length === 0 && allRequests.length > 0 && (
-            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>
-              Nenhum request encontrado com os filtros aplicados.
-            </div>
+            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhum registro encontrado com os filtros aplicados.</div>
           )}
-          
           {filteredRequests.length === 0 && allRequests.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>
-              Nenhum request encontrado.
-            </div>
+            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhum registro encontrado.</div>
           )}
-          
+
           {filteredRequests.map(item => (
-              <div key={item._id} style={{ 
-                border: '1px solid #eee', 
-                padding: 12, 
-                marginBottom: 10,
-                borderRadius: 6,
-                background: item.status === 'approved' ? '#f0f9ff' : item.status === 'rejected' ? '#fef2f2' : '#fff'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div>
-                    <strong>Solicitante:</strong> {item.requesterUser?.nome || 'N/A'} ({item.requesterUser?.email || 'N/A'})
-                  </div>
-                  <div style={{ 
-                    padding: '4px 8px', 
-                    borderRadius: 4, 
-                    fontSize: '12px',
-                    background: item.status === 'aprovado' ? '#dcfce7' : item.status === 'recusado' ? '#fee2e2' : '#fef3c7',
-                    color: item.status === 'aprovado' ? '#166534' : item.status === 'recusado' ? '#991b1b' : '#92400e'
-                  }}>
-                    {item.status === 'aprovado' ? '✅ Aprovado' : 
-                     item.status === 'recusado' ? '❌ Recusado' : 
-                     '⏳ Pendente'}
-                  </div>
+            <div key={item._id} style={{ border: '1px solid #e5e7eb', padding: 14, borderRadius: 10, background: '#fff', marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {getActionLabel(item.action)}
                 </div>
-                <div style={{ marginBottom: 8 }}>
-                  <strong>Ação:</strong> {getActionLabel(item.action)}
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  <strong>Data:</strong> {new Date(item.createdAt).toLocaleString('pt-BR')}
-                </div>
-                {item.payload && (
-                  <div>
-                    <strong>Detalhes:</strong>
-                    {formatRequestDetails(item.action, item.payload)}
-                  </div>
-                )}
-                {item.status === 'pendente' && (
-                  <div style={{ marginTop: 8 }}>
-                    <button 
-                      onClick={() => act(item._id, 'approve')}
-                      style={{ 
-                        background: '#10b981', 
-                        color: '#fff', 
-                        border: 'none', 
-                        padding: '6px 12px', 
-                        borderRadius: 4, 
-                        cursor: 'pointer',
-                        marginRight: 8
-                      }}
-                    >
-                      Aprovar
-                    </button>
-                    <button 
-                      onClick={() => act(item._id, 'reject')}
-                      style={{ 
-                        background: '#ef4444', 
-                        color: '#fff', 
-                        border: 'none', 
-                        padding: '6px 12px', 
-                        borderRadius: 4, 
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Recusar
-                    </button>
-                  </div>
+                <span style={statusChipStyle(item.status)}>
+                  {item.status === 'aprovado' ? 'Aprovado' : item.status === 'recusado' ? 'Recusado' : 'Pendente'}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}>
+                <strong>{item.requesterUser?.nome || 'N/A'}</strong>
+                {item.requesterUser?.email && (
+                  <span style={{ color: '#6b7280', marginLeft: 6 }}>({item.requesterUser.email})</span>
                 )}
               </div>
-            ))}
+              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: item.payload ? 4 : 0 }}>
+                {new Date(item.createdAt).toLocaleString('pt-BR')}
+              </div>
+              {item.payload && (
+                <div>{formatRequestDetails(item.action, item.payload)}</div>
+              )}
+              {item.status === 'pendente' && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button
+                    onClick={() => act(item._id, 'approve')}
+                    className={`${styles.btn} ${styles.btnSuccess} ${styles.btnSm}`}
+                  >
+                    Aprovar
+                  </button>
+                  <button
+                    onClick={() => act(item._id, 'reject')}
+                    className={`${styles.btn} ${styles.btnDanger} ${styles.btnSm}`}
+                  >
+                    Recusar
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </section>
       )}
 
       {tab === 'solicitacoes' && (
         <section className={styles.section}>
-          <h3>Solicitações pesadas (Admins)</h3>
-          {items.length === 0 && <div>Nenhuma solicitação pendente.</div>}
+          <div style={{ marginBottom: 16, padding: 12, background: '#f9fafb', borderRadius: 8 }}>
+            <div style={{ fontSize: '14px', color: '#6b7280' }}>
+              {items.length} {items.length === 1 ? 'solicitação pendente' : 'solicitações pendentes'}
+            </div>
+          </div>
+
+          {items.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhuma solicitação pendente.</div>
+          )}
+
           {items.map(item => (
-            <div key={item._id} className={styles.card}>
-              <div style={{ marginBottom: 8 }}>
-                <div><b>Ação:</b> {item.action}</div>
-                <div><b>Tipo:</b> {item.type}</div>
-                <div><b>Data:</b> {new Date(item.createdAt).toLocaleString('pt-BR')}</div>
+            <div key={item._id} style={{ border: '1px solid #e5e7eb', padding: 14, borderRadius: 10, background: '#fff', marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {getActionLabel(item.action)}
+                </div>
+                <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: '12px', fontWeight: 500, background: '#fef3c7', color: '#92400e', whiteSpace: 'nowrap' }}>
+                  Pendente
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}>
+                <strong>{item.requesterUser?.nome || 'N/A'}</strong>
+                {item.requesterUser?.email && (
+                  <span style={{ color: '#6b7280', marginLeft: 6 }}>({item.requesterUser.email})</span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: item.payload ? 4 : 0 }}>
+                {new Date(item.createdAt).toLocaleString('pt-BR')}
               </div>
               {item.payload && Object.keys(item.payload).length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <strong>Detalhes:</strong>
-                  {formatRequestDetails(item.action, item.payload)}
-                </div>
+                <div>{formatRequestDetails(item.action, item.payload)}</div>
               )}
-              <div>
-                <button 
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button
                   onClick={() => act(item._id, 'approve')}
-                  style={{ 
-                    background: '#10b981', 
-                    color: '#fff', 
-                    border: 'none', 
-                    padding: '6px 12px', 
-                    borderRadius: 4, 
-                    cursor: 'pointer',
-                    marginRight: 8
-                  }}
+                  className={`${styles.btn} ${styles.btnSuccess} ${styles.btnSm}`}
                 >
                   Aprovar
                 </button>
-                <button 
+                <button
                   onClick={() => act(item._id, 'reject')}
-                  style={{ 
-                    background: '#ef4444', 
-                    color: '#fff', 
-                    border: 'none', 
-                    padding: '6px 12px', 
-                    borderRadius: 4, 
-                    cursor: 'pointer'
-                  }}
+                  className={`${styles.btn} ${styles.btnDanger} ${styles.btnSm}`}
                 >
                   Recusar
                 </button>

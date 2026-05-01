@@ -540,6 +540,16 @@ export default function AdminPanel() {
     );
   };
 
+  const statusChipStyle = (status) => ({
+    padding: '4px 10px',
+    borderRadius: 999,
+    fontSize: '12px',
+    fontWeight: 500,
+    whiteSpace: 'nowrap',
+    background: status === 'aprovado' ? '#dcfce7' : status === 'recusado' ? '#fee2e2' : '#fef3c7',
+    color: status === 'aprovado' ? '#166534' : status === 'recusado' ? '#991b1b' : '#92400e',
+  });
+
   const getFazendaName = (id) => {
     const idStr = String(id);
     const f = fazendas.find(fz => String(fz._id) === idStr);
@@ -791,15 +801,15 @@ export default function AdminPanel() {
   if (error) return <div className={styles.loadingScreen} style={{ color: '#ef4444' }}>{error}</div>;
 
   const adminNavItems = [
-    { id: 'requests', icon: HiOutlineClipboardList, label: 'Requests', badge: items.length || null },
-    { id: 'solicitacoes', icon: HiOutlineBell, label: 'Solicitações' },
+    { id: 'requests', icon: HiOutlineClipboardList, label: 'Histórico' },
+    { id: 'solicitacoes', icon: HiOutlineBell, label: 'Solicitações', badge: items.length || null },
     { id: 'cativeiros', icon: HiOutlineOfficeBuilding, label: 'Cativeiros' },
     { id: 'funcionarios', icon: HiOutlineUsers, label: 'Funcionários' },
     { id: 'chat', icon: HiOutlineChatAlt2, label: 'Chat' },
   ];
 
   const adminPageTitles = {
-    requests: ['Requests', 'Histórico de ações dos funcionários'],
+    requests: ['Histórico', 'Histórico de ações dos funcionários'],
     solicitacoes: ['Solicitações', 'Aprovações pendentes de funcionários'],
     cativeiros: ['Fazendas & Cativeiros', 'Gerencie suas fazendas e cativeiros'],
     funcionarios: ['Funcionários', 'Equipe associada à sua fazenda'],
@@ -853,21 +863,7 @@ export default function AdminPanel() {
 
       {tab === 'requests' && (
         <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Histórico de Requests dos Funcionários</h2>
-            <button
-              onClick={() => {
-                setFuncionarioEmail('');
-                setShowAssociarFuncionarioModal(true);
-              }}
-              className={`${styles.btn} ${styles.btnSuccess}`}
-            >
-              Associar Funcionário à Fazenda
-            </button>
-          </div>
-          <div style={{
-            display: 'flex', gap: 12, marginBottom: 16, padding: 12, background: '#f9fafb', borderRadius: 8, alignItems: 'center', flexWrap: 'wrap'
-          }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, padding: 12, background: '#f9fafb', borderRadius: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <label style={{ fontSize: '14px', fontWeight: '500' }}>Solicitante:</label>
               <input
@@ -875,7 +871,7 @@ export default function AdminPanel() {
                 placeholder="Nome ou email..."
                 value={requesterFilter}
                 onChange={(e) => setRequesterFilter(e.target.value)}
-                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px', minWidth: '200px' }}
+                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px', minWidth: '180px' }}
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -894,7 +890,7 @@ export default function AdminPanel() {
                 placeholder="Ex: editar_cativeiro..."
                 value={actionFilter}
                 onChange={(e) => setActionFilter(e.target.value)}
-                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px', minWidth: '200px' }}
+                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px', minWidth: '180px' }}
               />
             </div>
             <button
@@ -910,38 +906,38 @@ export default function AdminPanel() {
               Limpar Filtros
             </button>
             <div style={{ fontSize: '14px', color: '#6b7280' }}>
-              {filteredRequests.length} de {allRequests.length} requests
+              {filteredRequests.length} de {allRequests.length} registros
             </div>
           </div>
 
           {filteredRequests.length === 0 && allRequests.length > 0 && (
-            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhum request encontrado com os filtros aplicados.</div>
+            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhum registro encontrado com os filtros aplicados.</div>
           )}
           {filteredRequests.length === 0 && allRequests.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhum request encontrado.</div>
+            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhum registro encontrado.</div>
           )}
 
           {filteredRequests.map(item => (
-            <div key={item._id} className={`${styles.card} ${item.status === 'aprovado' ? styles.cardApproved : item.status === 'recusado' ? styles.cardRejected : styles.cardPending}`}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div>
-                  <strong>Solicitante:</strong> {(item.requesterUser?.nome || item.requester?.nome || 'N/A')} ({item.requesterUser?.email || item.requester?.email || 'N/A'})
+            <div key={item._id} style={{ border: '1px solid #e5e7eb', padding: 14, borderRadius: 10, background: '#fff', marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {getActionLabel(item.action)}
                 </div>
-                <div style={{ padding: '4px 8px', borderRadius: 4, fontSize: '12px', background: item.status === 'aprovado' ? '#dcfce7' : item.status === 'recusado' ? '#fee2e2' : '#fef3c7', color: item.status === 'aprovado' ? '#166534' : item.status === 'recusado' ? '#991b1b' : '#92400e' }}>
-                  {item.status === 'aprovado' ? '✅ Aprovado' : item.status === 'recusado' ? '❌ Recusado' : '⏳ Pendente'}
-                </div>
+                <span style={statusChipStyle(item.status)}>
+                  {item.status === 'aprovado' ? 'Aprovado' : item.status === 'recusado' ? 'Recusado' : 'Pendente'}
+                </span>
               </div>
-              <div style={{ marginBottom: 8 }}>
-                <strong>Ação:</strong> {getActionLabel(item.action)}
+              <div style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}>
+                <strong>{item.requesterUser?.nome || item.requester?.nome || 'N/A'}</strong>
+                {(item.requesterUser?.email || item.requester?.email) && (
+                  <span style={{ color: '#6b7280', marginLeft: 6 }}>({item.requesterUser?.email || item.requester?.email})</span>
+                )}
               </div>
-              <div style={{ marginBottom: 8 }}>
-                <strong>Data:</strong> {new Date(item.createdAt).toLocaleString('pt-BR')}
+              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: item.payload ? 4 : 0 }}>
+                {new Date(item.createdAt).toLocaleString('pt-BR')}
               </div>
               {item.payload && (
-                <div>
-                  <strong>Detalhes:</strong>
-                  {formatRequestDetails(item.action, item.payload)}
-                </div>
+                <div>{formatRequestDetails(item.action, item.payload)}</div>
               )}
             </div>
           ))}
@@ -950,29 +946,46 @@ export default function AdminPanel() {
 
       {tab === 'solicitacoes' && (
         <section className={styles.section}>
-          <h3>Solicitações leves dos funcionários</h3>
-          {items.length === 0 && <div className={styles.emptyState}><p className={styles.emptyStateText}>Nenhuma solicitação pendente.</p></div>}
+          <div style={{ marginBottom: 16, padding: 12, background: '#f9fafb', borderRadius: 8 }}>
+            <div style={{ fontSize: '14px', color: '#6b7280' }}>
+              {items.length} {items.length === 1 ? 'solicitação pendente' : 'solicitações pendentes'}
+            </div>
+          </div>
+
+          {items.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Nenhuma solicitação pendente.</div>
+          )}
+
           {items.map(item => (
-            <div key={item._id} className={styles.card}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div><b>Solicitante:</b> {(item.requesterUser?.nome || item.requester?.nome || 'N/A')} ({item.requesterUser?.email || item.requester?.email || 'N/A'})</div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>{new Date(item.createdAt).toLocaleString('pt-BR')}</div>
-              </div>
-              <div style={{ marginBottom: 8 }}><b>Ação:</b> {getActionLabel(item.action)}</div>
-              {item.payload && (
-                <div style={{ marginBottom: 12 }}>
-                  <strong>Detalhes:</strong>
-                  {formatRequestDetails(item.action, item.payload)}
+            <div key={item._id} style={{ border: '1px solid #e5e7eb', padding: 14, borderRadius: 10, background: '#fff', marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {getActionLabel(item.action)}
                 </div>
+                <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: '12px', fontWeight: 500, background: '#fef3c7', color: '#92400e', whiteSpace: 'nowrap' }}>
+                  Pendente
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}>
+                <strong>{item.requesterUser?.nome || item.requester?.nome || 'N/A'}</strong>
+                {(item.requesterUser?.email || item.requester?.email) && (
+                  <span style={{ color: '#6b7280', marginLeft: 6 }}>({item.requesterUser?.email || item.requester?.email})</span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: item.payload ? 4 : 0 }}>
+                {new Date(item.createdAt).toLocaleString('pt-BR')}
+              </div>
+              {item.payload && (
+                <div>{formatRequestDetails(item.action, item.payload)}</div>
               )}
-              <div>
-                <button 
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button
                   onClick={() => applyAndApprove(item)}
-                  className={`${styles.btn} ${styles.btnSuccess} ${styles.btnSm}`} style={{ marginRight: 8 }}
+                  className={`${styles.btn} ${styles.btnSuccess} ${styles.btnSm}`}
                 >
                   Aplicar e Aprovar
                 </button>
-                <button 
+                <button
                   onClick={() => act(item._id, 'reject')}
                   className={`${styles.btn} ${styles.btnDanger} ${styles.btnSm}`}
                 >
@@ -989,20 +1002,6 @@ export default function AdminPanel() {
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Fazendas e Cativeiros</h2>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => setShowAssociarFuncionarioModal(true)}
-                style={{
-                  background: '#10b981',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                Associar Funcionário
-              </button>
               <button
                 onClick={() => setShowCreateModal(true)}
                 style={{
