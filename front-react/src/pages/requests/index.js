@@ -63,7 +63,8 @@ export default function MyRequests() {
     cadastrar_sensor: 'Cadastrar sensor',
     excluir_sensor: 'Excluir sensor',
     editar_cativeiro_add_sensor: 'Adicionar sensor ao cativeiro',
-    editar_cativeiro_remove_sensor: 'Remover sensor do cativeiro'
+    editar_cativeiro_remove_sensor: 'Remover sensor do cativeiro',
+    editar_dieta: 'Gerenciar dieta de cativeiro'
   })[action] || action;
 
   const getTipoCamaraoNome = (id) => {
@@ -95,8 +96,10 @@ export default function MyRequests() {
     const { action, payload = {} } = item;
     if (action === 'editar_cativeiro') {
       const fields = [];
+      if (payload.cativeiroNome) fields.push({ label: 'Cativeiro', value: payload.cativeiroNome });
       if (typeof payload.nome !== 'undefined') fields.push({ label: 'Nome do cativeiro', value: payload.nome });
       if (typeof payload.id_tipo_camarao !== 'undefined') fields.push({ label: 'Tipo de camarão', value: getTipoCamaraoNome(payload.id_tipo_camarao) });
+      if (typeof payload.data_instalacao !== 'undefined') fields.push({ label: 'Data de instalação', value: payload.data_instalacao ? new Date(payload.data_instalacao).toLocaleDateString('pt-BR') : 'N/A' });
       if (typeof payload.temp_media_diaria !== 'undefined') fields.push({ label: 'Temperatura ideal (°C)', value: payload.temp_media_diaria });
       if (typeof payload.ph_medio_diario !== 'undefined') fields.push({ label: 'pH ideal', value: payload.ph_medio_diario });
       if (typeof payload.amonia_media_diaria !== 'undefined') fields.push({ label: 'Amônia ideal (mg/L)', value: payload.amonia_media_diaria });
@@ -110,8 +113,26 @@ export default function MyRequests() {
       );
     }
 
+    if (action === 'editar_dieta') {
+      const horarios = Array.isArray(payload?.horarios) ? payload.horarios.filter(h => h) : [];
+      const fields = [];
+      if (payload.cativeiroNome) fields.push({ label: 'Cativeiro', value: payload.cativeiroNome });
+      if (payload.descricao) fields.push({ label: 'Descrição', value: payload.descricao });
+      if (typeof payload.quantidade !== 'undefined') fields.push({ label: 'Quantidade', value: `${payload.quantidade}g por refeição` });
+      if (typeof payload.quantidadeRefeicoes !== 'undefined') fields.push({ label: 'Refeições/dia', value: payload.quantidadeRefeicoes });
+      if (horarios.length > 0) fields.push({ label: 'Horários', value: horarios.join(', ') });
+      if (fields.length === 0) return null;
+      return (
+        <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+          {fields.map((f, i) => (
+            <li key={i}><strong>{f.label}:</strong> {String(f.value)}</li>
+          ))}
+        </ul>
+      );
+    }
+
     // Fallback genérico: lista chaves legíveis e esconde ids técnicos
-    const hiddenKeys = new Set(['_id', 'id', 'cativeiroId', 'sensorId', 'fazendaId', 'fazenda']);
+    const hiddenKeys = new Set(['_id', 'id', 'cativeiroId', 'cativeiroNome', 'sensorId', 'fazendaId', 'fazenda', 'dietaId']);
     const entries = Object.entries(payload).filter(([k]) => !hiddenKeys.has(k));
     if (entries.length === 0) return null;
     return (

@@ -33,6 +33,9 @@ export default function MasterPanel() {
   const [showDeleteDietaModal, setShowDeleteDietaModal] = useState(false);
   const [deleteDietaData, setDeleteDietaData] = useState(null); // { id, descricao }
   const [masterNotification, setMasterNotification] = useState({ show: false, message: '', type: 'success' });
+  const [previewImage, setPreviewImage] = useState({});
+  const [photoErrors, setPhotoErrors] = useState({});
+  const [uploadTargetCativeiro, setUploadTargetCativeiro] = useState(null);
   const [error, setError] = useState('');
   const [requesterFilter, setRequesterFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -43,6 +46,7 @@ export default function MasterPanel() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatText, setChatText] = useState('');
   const chatEndRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showDeleteConvModal, setShowDeleteConvModal] = useState(false);
   const getMyId = () => {
@@ -485,10 +489,16 @@ export default function MasterPanel() {
     };
     if (action === 'editar_cativeiro_add_sensor') {
       const nome = getCativeiroNomeById(payload?.cativeiroId);
+      const tipos = Array.isArray(payload?.tipos) ? payload.tipos : [];
       return (
         <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
-          <div><strong>Cativeiro:</strong> {nome}</div>
-          <div style={{ color: '#6b7280', fontSize: 13, marginTop: 4 }}>Solicitação de vínculo de sensores (Master decidirá quais associar).</div>
+          <div style={{ marginBottom: 6 }}><strong>Cativeiro:</strong> {nome}</div>
+          <div><strong>Sensores solicitados:</strong></div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+            {tipos.length > 0 ? tipos.map(t => (
+              <span key={t} style={{ padding: '4px 8px', background: '#e5e7eb', borderRadius: 999, fontSize: 12, color: '#374151' }}>{t}</span>
+            )) : <span style={{ color: '#6b7280' }}>Nenhum tipo informado</span>}
+          </div>
         </div>
       );
     }
@@ -545,22 +555,38 @@ export default function MasterPanel() {
         </div>
       );
     } else if (action === 'editar_cativeiro') {
-      const tipoCamarao = payload.id_tipo_camarao ? (tiposCamarao.find(t => t._id === payload.id_tipo_camarao) || null) : null;
+      const cativeiroNome = payload.cativeiroNome || getCativeiroNomeById(payload.cativeiroId);
+      const tipoCamarao = payload.id_tipo_camarao ? (tiposCamarao.find(t => String(t._id) === String(payload.id_tipo_camarao)) || null) : null;
       return (
-        <div style={{ 
-          background: '#f8fafc', 
-          padding: 12, 
-          borderRadius: 6, 
-          marginTop: 8,
-          border: '1px solid #e2e8f0'
-        }}>
-          <div><strong>Cativeiro ID:</strong> {payload.cativeiroId || 'N/A'}</div>
-          {typeof payload.nome !== 'undefined' && (
-            <div><strong>Novo Nome:</strong> {payload.nome || 'N/A'}</div>
-          )}
-          {typeof payload.id_tipo_camarao !== 'undefined' && (
-            <div><strong>Novo Tipo de Camarão:</strong> {tipoCamarao ? tipoCamarao.nome : payload.id_tipo_camarao || 'N/A'}</div>
-          )}
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: 6 }}><strong>Cativeiro:</strong> {cativeiroNome}</div>
+          <div><strong>Alterações solicitadas:</strong></div>
+          <ul style={{ marginTop: 6, marginLeft: 18 }}>
+            {typeof payload?.nome !== 'undefined' && <li><strong>Nome:</strong> {payload.nome || 'N/A'}</li>}
+            {typeof payload?.id_tipo_camarao !== 'undefined' && (
+              <li><strong>Tipo de Camarão:</strong> {tipoCamarao ? tipoCamarao.nome : payload.id_tipo_camarao}</li>
+            )}
+            {typeof payload?.data_instalacao !== 'undefined' && (
+              <li><strong>Data de instalação:</strong> {payload.data_instalacao ? new Date(payload.data_instalacao).toLocaleDateString('pt-BR') : 'N/A'}</li>
+            )}
+            {typeof payload?.temp_media_diaria !== 'undefined' && <li><strong>Temp ideal (°C):</strong> {payload.temp_media_diaria}</li>}
+            {typeof payload?.ph_medio_diario !== 'undefined' && <li><strong>pH ideal:</strong> {payload.ph_medio_diario}</li>}
+            {typeof payload?.amonia_media_diaria !== 'undefined' && <li><strong>Amônia ideal (mg/L):</strong> {payload.amonia_media_diaria}</li>}
+          </ul>
+        </div>
+      );
+    } else if (action === 'editar_dieta') {
+      const horarios = Array.isArray(payload?.horarios) ? payload.horarios.filter(h => h) : [];
+      return (
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: 6 }}><strong>Cativeiro:</strong> {payload?.cativeiroNome || payload?.cativeiroId || 'N/A'}</div>
+          <div><strong>Alterações solicitadas:</strong></div>
+          <ul style={{ marginTop: 6, marginLeft: 18 }}>
+            {payload?.descricao && <li><strong>Descrição:</strong> {payload.descricao}</li>}
+            {typeof payload?.quantidade !== 'undefined' && <li><strong>Quantidade:</strong> {payload.quantidade}g por refeição</li>}
+            {typeof payload?.quantidadeRefeicoes !== 'undefined' && <li><strong>Refeições/dia:</strong> {payload.quantidadeRefeicoes}</li>}
+            {horarios.length > 0 && <li><strong>Horários:</strong> {horarios.join(', ')}</li>}
+          </ul>
         </div>
       );
     } else if (action === 'editar_sensor') {
@@ -669,6 +695,7 @@ export default function MasterPanel() {
       cadastrar_cativeiro: 'Cadastrar cativeiro',
       editar_cativeiro: 'Editar cativeiro',
       editar_sensor: 'Editar sensor',
+      editar_dieta: 'Gerenciar dieta de cativeiro',
       cadastrar_funcionario: 'Cadastrar funcionário',
       associar_funcionario: 'Associar funcionário à fazenda',
       cadastrar_proprietario: 'Cadastrar proprietário',
@@ -713,6 +740,46 @@ export default function MasterPanel() {
   const ensureCativeirosForFazenda = async (fzId) => {
     // No-op: usamos os cativeiros já carregados em memória
     return;
+  };
+
+  const handleCativeiroFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setMasterNotification({ show: true, message: 'Selecione um arquivo de imagem válido.', type: 'error' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMasterNotification({ show: true, message: 'Imagem muito grande. Máximo 5MB.', type: 'error' });
+      return;
+    }
+    if (!uploadTargetCativeiro) {
+      setMasterNotification({ show: true, message: 'Nenhum cativeiro selecionado.', type: 'error' });
+      return;
+    }
+    const targetId = uploadTargetCativeiro;
+    const localUrl = URL.createObjectURL(file);
+    setPreviewImage(prev => ({ ...prev, [targetId]: localUrl }));
+    setPhotoErrors(prev => { const next = { ...prev }; delete next[targetId]; return next; });
+    await uploadCativeiroPhoto(targetId, file);
+    e.target.value = '';
+    setUploadTargetCativeiro(null);
+  };
+
+  const uploadCativeiroPhoto = async (cativeiroId, file) => {
+    try {
+      const token = getToken();
+      const form = new FormData();
+      form.append('foto', file);
+      await axios.post(`${apiUrl}/cativeiros/${cativeiroId}/foto`, form, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+      });
+      setMasterNotification({ show: true, message: 'Foto atualizada com sucesso!', type: 'success' });
+      await load();
+    } catch {
+      setMasterNotification({ show: true, message: 'Falha ao atualizar foto. Tente novamente.', type: 'error' });
+      setPreviewImage(prev => { const next = { ...prev }; delete next[cativeiroId]; return next; });
+    }
   };
 
   const loadSensorsForCativeiro = async (cativeiroId) => {
@@ -981,6 +1048,14 @@ export default function MasterPanel() {
           <p className={styles.pageSubtitle}>{(masterPageTitles[tab] || ['', ''])[1]}</p>
         </header>
         <div className={styles.content}>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleCativeiroFileChange}
+      />
 
       {tab === 'requests' && (
         <section className={styles.section}>
@@ -1336,6 +1411,35 @@ export default function MasterPanel() {
                                           <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>{value}</div>
                                         </div>
                                       ))}
+                                    </div>
+
+                                    {/* Foto */}
+                                    <div style={{ marginBottom: 16 }}>
+                                      <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Foto</div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        {(previewImage[c._id] || !photoErrors[c._id]) ? (
+                                          <img
+                                            src={previewImage[c._id] || `${apiUrl}/cativeiros/${c._id}/foto`}
+                                            alt="Foto do cativeiro"
+                                            style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0 }}
+                                            onError={() => {
+                                              if (!previewImage[c._id]) {
+                                                setPhotoErrors(prev => ({ ...prev, [c._id]: true }));
+                                              }
+                                            }}
+                                          />
+                                        ) : (
+                                          <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="13" r="4" stroke="#94a3b8" strokeWidth="1.5"/></svg>
+                                          </div>
+                                        )}
+                                        <button
+                                          onClick={() => { setUploadTargetCativeiro(c._id); fileInputRef.current?.click(); }}
+                                          className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}
+                                        >
+                                          Alterar foto
+                                        </button>
+                                      </div>
                                     </div>
 
                                     {/* Sensors */}
@@ -2378,16 +2482,11 @@ export default function MasterPanel() {
             <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Amônia ideal (mg/L)</label>
             <input value={editForm.amonia_media_diaria} onChange={(e) => setEditForm(f => ({ ...f, amonia_media_diaria: e.target.value }))} placeholder="ex: 0.05" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
           </div>
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Imagem do cativeiro (opcional)</label>
-            <input type="file" accept="image/*" onChange={(e) => setEditForm(f => ({ ...f, fotoFile: e.target.files?.[0] || null }))} style={{ width: '100%' }} />
-          </div>
           <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
             <button onClick={() => setShowEditModal(false)} style={{ border: '1px solid #e5e7eb', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Cancelar</button>
             <button onClick={async () => {
               try {
                 const token = getToken();
-                // Enviar dados básicos via PATCH
                 await axios.patch(`${apiUrl}/cativeiros/${editForm.id}`, {
                   nome: editForm.nome,
                   id_tipo_camarao: editForm.id_tipo_camarao,
@@ -2396,12 +2495,6 @@ export default function MasterPanel() {
                   ph_medio_diario: editForm.ph_medio_diario,
                   amonia_media_diaria: editForm.amonia_media_diaria
                 }, { headers: { Authorization: `Bearer ${token}` } });
-                // Enviar imagem se houver
-                if (editForm.fotoFile) {
-                  const form = new FormData();
-                  form.append('foto_cativeiro', editForm.fotoFile);
-                  await axios.put(`${apiUrl}/cativeiros/${editForm.id}`, form, { headers: { Authorization: `Bearer ${token}` } });
-                }
                 setShowEditModal(false);
                 await load();
               } catch (e) {

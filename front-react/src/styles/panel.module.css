@@ -1165,8 +1165,17 @@
   .sidebar {
     width: 60px;
   }
-  .sidebarBrand, .sidebarRole, .navLabel, .navBadge, .userInfo, .sidebarLogoutBtn {
+  .sidebarBrand, .sidebarRole, .navLabel, .userInfo, .sidebarLogoutBtn {
     display: none;
+  }
+  .navBadge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    min-width: 14px;
+    padding: 1px 3px;
+    font-size: 9px;
+    line-height: 13px;
   }
   .navItem {
     justify-content: center;

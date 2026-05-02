@@ -2,6 +2,13 @@ import Request from "../models/Requests.js";
 import userService from "../services/userService.js";
 import Fazendas from "../models/Fazendas.js";
 import UsuariosxFazendas from "../models/UsuariosxFazendas.js";
+import Cativeiros from "../models/Cativeiros.js";
+import CondicoesIdeais from "../models/Condicoes_ideais.js";
+import Dietas from "../models/Dietas.js";
+import DietasxCativeiros from "../models/DietasxCativeiros.js";
+import Sensores from "../models/Sensores.js";
+import SensoresxCativeiros from "../models/SensoresxCativeiros.js";
+import TiposSensor from "../models/Tipos_sensores.js";
 
 class RequestService {
   async create({ requesterUser, requesterRole, targetRole, type, action, payload, fazenda }) {
@@ -151,6 +158,104 @@ class RequestService {
         }
       } catch (error) {
         console.error('Erro ao criar usuário/fazenda na aprovação de funcionário:', error);
+        throw error;
+      }
+    }
+
+    // Vincular sensores quando solicitação de vínculo é aprovada
+    if (request.action === 'editar_cativeiro_add_sensor' && request.payload?.cativeiroId) {
+      try {
+        const payload = request.toObject ? request.toObject().payload : request.payload;
+        const cativeiroId = payload.cativeiroId;
+        const tipos = Array.isArray(payload.tipos) ? payload.tipos : Object.values(payload.tipos || {});
+
+        const normalize = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+        const existingLinks = await SensoresxCativeiros.find({ id_cativeiro: cativeiroId });
+        const linkedSensorIds = new Set(existingLinks.map(l => String(l.id_sensor)));
+
+        const allSensors = await Sensores.find({}).populate('id_tipo_sensor');
+
+        for (const tipoStr of tipos) {
+          const tipoNorm = normalize(tipoStr);
+          const available = allSensors.find(s => {
+            if (linkedSensorIds.has(String(s._id))) return false;
+            const desc = s.id_tipo_sensor?.descricao || (typeof s.id_tipo_sensor === 'string' ? s.id_tipo_sensor : '');
+            return normalize(desc) === tipoNorm;
+          });
+          if (!available) {
+            console.warn(`⚠️ [APPROVE ADD_SENSOR] Nenhum sensor disponível do tipo: ${tipoStr}`);
+            continue;
+          }
+          await SensoresxCativeiros.create({ id_sensor: available._id, id_cativeiro: cativeiroId });
+          linkedSensorIds.add(String(available._id));
+          console.log(`✅ [APPROVE ADD_SENSOR] Sensor ${available._id} (${tipoStr}) vinculado ao cativeiro ${cativeiroId}`);
+        }
+      } catch (error) {
+        console.error('❌ [APPROVE ADD_SENSOR] Erro ao vincular sensores:', error);
+        throw error;
+      }
+    }
+
+    // Aplicar edição de cativeiro quando aprovada
+    if (request.action === 'editar_cativeiro' && request.payload?.cativeiroId) {
+      try {
+        const { cativeiroId, nome, id_tipo_camarao, data_instalacao, temp_media_diaria, ph_medio_diario, amonia_media_diaria } = request.payload;
+        const catUpdate = {};
+        if (typeof nome !== 'undefined') catUpdate.nome = nome;
+        if (typeof data_instalacao !== 'undefined') catUpdate.data_instalacao = data_instalacao;
+
+        if (id_tipo_camarao) {
+          const toNum = (v, pad) => { const n = parseFloat(v); return isNaN(n) ? pad : n; };
+          const condicao = await CondicoesIdeais.create({
+            id_tipo_camarao,
+            temp_ideal: toNum(temp_media_diaria, 26),
+            ph_ideal: toNum(ph_medio_diario, 7.5),
+            amonia_ideal: toNum(amonia_media_diaria, 0.05),
+          });
+          catUpdate.id_tipo_camarao = id_tipo_camarao;
+          catUpdate.condicoes_ideais = condicao._id;
+        } else if (typeof temp_media_diaria !== 'undefined' || typeof ph_medio_diario !== 'undefined' || typeof amonia_media_diaria !== 'undefined') {
+          const cat = await Cativeiros.findById(cativeiroId);
+          if (cat?.condicoes_ideais) {
+            const ciUpdate = {};
+            if (typeof temp_media_diaria !== 'undefined') ciUpdate.temp_ideal = parseFloat(temp_media_diaria);
+            if (typeof ph_medio_diario !== 'undefined') ciUpdate.ph_ideal = parseFloat(ph_medio_diario);
+            if (typeof amonia_media_diaria !== 'undefined') ciUpdate.amonia_ideal = parseFloat(amonia_media_diaria);
+            await CondicoesIdeais.findByIdAndUpdate(cat.condicoes_ideais, ciUpdate);
+          }
+        }
+
+        if (Object.keys(catUpdate).length > 0) {
+          await Cativeiros.findByIdAndUpdate(cativeiroId, catUpdate);
+        }
+      } catch (error) {
+        console.error('❌ [APPROVE EDITAR_CATIVEIRO] Erro ao aplicar edição:', error);
+        throw error;
+      }
+    }
+
+    // Aplicar dieta quando aprovada
+    if (request.action === 'editar_dieta' && request.payload?.cativeiroId) {
+      try {
+        const { cativeiroId, dietaId, descricao, quantidade, quantidadeRefeicoes, horarios } = request.payload;
+        const horariosValidos = Array.isArray(horarios) ? horarios.filter(h => h) : [];
+        const dietaData = {
+          descricao: descricao || '',
+          quantidade: Number(quantidade),
+          horarios: horariosValidos,
+          quantidadeRefeicoes: Number(quantidadeRefeicoes) || horariosValidos.length || 1,
+          horaAlimentacao: horariosValidos[0] || '',
+        };
+        if (dietaId) {
+          await Dietas.findByIdAndUpdate(dietaId, dietaData);
+        } else {
+          const novaDieta = await Dietas.create(dietaData);
+          await DietasxCativeiros.updateMany({ cativeiro: cativeiroId, ativo: true }, { $set: { ativo: false } });
+          await DietasxCativeiros.create({ cativeiro: cativeiroId, dieta: novaDieta._id, ativo: true });
+        }
+      } catch (error) {
+        console.error('❌ [APPROVE EDITAR_DIETA] Erro ao aplicar dieta:', error);
         throw error;
       }
     }

@@ -26,6 +26,7 @@ export default function AdminPanel() {
   const [condicoesIdeais, setCondicoesIdeais] = useState([]);
   const [sensores, setSensores] = useState([]); // mantemos carregado para futuras funcionalidades
   const [previewImage, setPreviewImage] = useState({});  // cativeiroId -> imageUrl
+  const [photoErrors, setPhotoErrors] = useState({});   // cativeiroId -> bool (foto não encontrada)
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [funcionarios, setFuncionarios] = useState([]);
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -79,16 +80,21 @@ export default function AdminPanel() {
   const [expandedFazenda, setExpandedFazenda] = useState({}); // id -> bool
   const [expandedCativeiro, setExpandedCativeiro] = useState({}); // id -> bool
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    id: '', cativeiroNome: '', nome: '', id_tipo_camarao: '',
+    data_instalacao: '', temp_media_diaria: '', ph_medio_diario: '', amonia_media_diaria: ''
+  });
   // Dietas por cativeiro (cache simples)
   const [cativeiroDieta, setCativeiroDieta] = useState({}); // id -> { descricao }
   const [showDietaModal, setShowDietaModal] = useState(false);
   const [dietaModalCativeiroId, setDietaModalCativeiroId] = useState(null);
+  const [dietaModalCativeiroNome, setDietaModalCativeiroNome] = useState('');
   const [dietaForm, setDietaForm] = useState({
-    quantidadeRefeicoes: 1,
-    modoHorario: 'automatico', // 'automatico' ou 'manual'
-    horariosManuais: [''],
+    descricao: '',
     quantidade: '',
-    descricao: ''
+    quantidadeRefeicoes: 1,
+    horarios: [''],
   });
   const isMaster = (user?.role || (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize') || '{}')?.role) : '')) === 'master';
   const [newCativeiro, setNewCativeiro] = useState({
@@ -188,7 +194,11 @@ export default function AdminPanel() {
       ]);
       setItems(reqs.data);
       setFazendas(fzs.data);
-      setCativeiros(cats.data);
+      setCativeiros(prev => {
+        const sensorMap = {};
+        prev.forEach(c => { if (Array.isArray(c.sensores)) sensorMap[c._id] = c.sensores; });
+        return cats.data.map(c => sensorMap[c._id] ? { ...c, sensores: sensorMap[c._id] } : c);
+      });
       setTiposCamarao(tipos.data);
       setCondicoesIdeais(condicoes.data);
       setSensores(sens.data);
@@ -401,66 +411,30 @@ export default function AdminPanel() {
     }
   };
 
-  const calcularHorariosAutomaticos = (numRefeicoes) => {
-    if (numRefeicoes < 1 || numRefeicoes > 6) return [];
-    const intervalo = 24 / numRefeicoes;
-    const horarios = [];
-    for (let i = 0; i < numRefeicoes; i++) {
-      const horasTotal = i * intervalo;
-      const horas = Math.floor(horasTotal);
-      const minutos = Math.round((horasTotal - horas) * 60);
-      const horasStr = String(horas % 24).padStart(2, '0');
-      const minutosStr = String(minutos % 60).padStart(2, '0');
-      horarios.push(`${horasStr}:${minutosStr}`);
+  const solicitarEdicaoDieta = async () => {
+    if (!dietaForm.quantidade || String(dietaForm.quantidade).trim() === '') {
+      setAdminNotification({ show: true, message: 'Quantidade de ração (g) é obrigatória.', type: 'error' });
+      return;
     }
-    return horarios;
-  };
-
-  const upsertDietaForCativeiro = async (cativeiroId) => {
     try {
       const token = getToken();
       const headers = { Authorization: `Bearer ${token}` };
-      
-      if (!dietaForm.quantidade || String(dietaForm.quantidade).trim() === '') {
-        alert('Quantidade de ração em gramas é obrigatória.');
-        return;
-      }
-
-      let horarios = [];
-      if (dietaForm.modoHorario === 'automatico') {
-        horarios = calcularHorariosAutomaticos(dietaForm.quantidadeRefeicoes);
-      } else {
-        horarios = dietaForm.horariosManuais.filter(h => h && h.trim());
-      }
-
-      if (horarios.length === 0) {
-        alert('É necessário definir pelo menos um horário de alimentação.');
-        return;
-      }
-
-      const atual = cativeiroDieta[cativeiroId];
-      const dietaData = {
+      const atual = cativeiroDieta[dietaModalCativeiroId];
+      const horariosValidos = (dietaForm.horarios || []).slice(0, dietaForm.quantidadeRefeicoes).filter(h => h);
+      const payload = {
+        cativeiroId: dietaModalCativeiroId,
+        cativeiroNome: dietaModalCativeiroNome,
+        dietaId: atual?.dietaId || null,
         descricao: dietaForm.descricao || '',
-        quantidade: Number(dietaForm.quantidade),
-        horarios: horarios,
-        quantidadeRefeicoes: dietaForm.quantidadeRefeicoes
+        quantidade: dietaForm.quantidade,
+        quantidadeRefeicoes: dietaForm.quantidadeRefeicoes,
+        horarios: horariosValidos,
       };
-
-      if (atual && atual.dietaId) {
-        await axios.put(`${apiUrl}/dietas/${atual.dietaId}`, dietaData, { headers });
-      } else {
-        const d = await axios.post(`${apiUrl}/dietas`, dietaData, { headers });
-        const dietaId = d?.data?._id;
-        if (!dietaId) throw new Error('Falha ao criar dieta');
-        await axios.post(`${apiUrl}/dietas/assign/${cativeiroId}`, { dietaId, ativo: true }, { headers });
-      }
-      
-      // Recarrega dieta atual
-      await loadDietaAtual(cativeiroId);
+      await axios.post(`${apiUrl}/requests`, { action: 'editar_dieta', payload }, { headers });
       setShowDietaModal(false);
-      alert('Dieta atualizada com sucesso.');
+      setAdminNotification({ show: true, message: 'Solicitação de dieta enviada ao Master.', type: 'success' });
     } catch (e) {
-      alert('Erro ao criar/atribuir dieta: ' + (e?.response?.data?.error || e.message));
+      setAdminNotification({ show: true, message: 'Erro ao enviar solicitação: ' + (e?.response?.data?.error || e.message), type: 'error' });
     }
   };
 
@@ -471,6 +445,7 @@ export default function AdminPanel() {
       cadastrar_cativeiro: 'Cadastrar cativeiro',
       editar_cativeiro: 'Editar cativeiro',
       editar_sensor: 'Editar sensor',
+      editar_dieta: 'Gerenciar dieta de cativeiro',
     };
     return map[action] || action;
   };
@@ -505,16 +480,19 @@ export default function AdminPanel() {
       );
     }
     if (action === 'editar_cativeiro') {
-      const nome = typeof payload?.cativeiroId !== 'undefined' ? getCativeiroNomeById(payload.cativeiroId) : '—';
+      const nome = payload?.cativeiroNome || getCativeiroNomeById(payload?.cativeiroId);
       const tipoCam = typeof payload?.id_tipo_camarao !== 'undefined' ? (tiposCamarao.find(t => String(t._id) === String(payload.id_tipo_camarao)) || null) : null;
       return (
         <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
           <div style={{ marginBottom: 6 }}><strong>Cativeiro:</strong> {nome}</div>
-          <div><strong>Alterações:</strong></div>
+          <div><strong>Alterações solicitadas:</strong></div>
           <ul style={{ marginTop: 6, marginLeft: 18 }}>
             {typeof payload?.nome !== 'undefined' && (<li><strong>Nome:</strong> {payload.nome || 'N/A'}</li>)}
             {typeof payload?.id_tipo_camarao !== 'undefined' && (
               <li><strong>Tipo de Camarão:</strong> {tipoCam ? tipoCam.nome : payload.id_tipo_camarao}</li>
+            )}
+            {typeof payload?.data_instalacao !== 'undefined' && (
+              <li><strong>Data de instalação:</strong> {payload.data_instalacao ? new Date(payload.data_instalacao).toLocaleDateString('pt-BR') : 'N/A'}</li>
             )}
             {typeof payload?.temp_media_diaria !== 'undefined' && (<li><strong>Temp ideal (°C):</strong> {payload.temp_media_diaria}</li>)}
             {typeof payload?.ph_medio_diario !== 'undefined' && (<li><strong>pH ideal:</strong> {payload.ph_medio_diario}</li>)}
@@ -532,6 +510,20 @@ export default function AdminPanel() {
         <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
           <div><strong>Sensor:</strong> {tipo ? `${tipo} | ${apelido}` : (payload?.apelido || payload?.id || 'N/A')}</div>
           {payload?.apelido && <div><strong>Novo Apelido:</strong> {payload.apelido}</div>}
+        </div>
+      );
+    }
+    if (action === 'editar_dieta') {
+      const horarios = Array.isArray(payload?.horarios) ? payload.horarios.filter(h => h) : [];
+      return (
+        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 6, marginTop: 8, border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: 6 }}><strong>Cativeiro:</strong> {payload?.cativeiroNome || payload?.cativeiroId || 'N/A'}</div>
+          <ul style={{ margin: '6px 0 0 18px' }}>
+            {payload?.descricao && <li><strong>Descrição:</strong> {payload.descricao}</li>}
+            {typeof payload?.quantidade !== 'undefined' && <li><strong>Quantidade:</strong> {payload.quantidade}g por refeição</li>}
+            {typeof payload?.quantidadeRefeicoes !== 'undefined' && <li><strong>Refeições/dia:</strong> {payload.quantidadeRefeicoes}</li>}
+            {horarios.length > 0 && <li><strong>Horários:</strong> {horarios.join(', ')}</li>}
+          </ul>
         </div>
       );
     }
@@ -575,7 +567,7 @@ export default function AdminPanel() {
     const faltaAmonia = !tiposAtuais.has('amonia');
 
     if (!faltaTemperatura && !faltaPh && !faltaAmonia) {
-      alert('Este cativeiro já possui sensores de temperatura, pH e amônia.');
+      setAdminNotification({ show: true, message: 'Este cativeiro já possui sensores de temperatura, pH e amônia.', type: 'error' });
       return;
     }
 
@@ -602,7 +594,7 @@ export default function AdminPanel() {
       if (temperatura) tipos.push('temperatura');
       if (ph) tipos.push('ph');
       if (amonia) tipos.push('amonia');
-      if (tipos.length === 0) { alert('Selecione pelo menos um tipo para trocar.'); return; }
+      if (tipos.length === 0) { setAdminNotification({ show: true, message: 'Selecione pelo menos um tipo para trocar.', type: 'error' }); return; }
       const token = getToken();
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post(`${apiUrl}/requests`, {
@@ -611,49 +603,40 @@ export default function AdminPanel() {
         fazenda: null
       }, { headers });
       setShowSwapModal(false);
-      alert('Solicitação de troca enviada para o Master.');
+      setAdminNotification({ show: true, message: 'Solicitação de troca enviada para o Master.', type: 'success' });
     } catch (e) {
-      alert('Erro ao solicitar troca: ' + (e?.response?.data?.error || e.message));
+      setAdminNotification({ show: true, message: 'Erro ao solicitar troca: ' + (e?.response?.data?.error || e.message), type: 'error' });
     }
   };
 
-  const updateCativeiroNome = async (id, nome) => {
-    const token = getToken();
-    await axios.patch(`${apiUrl}/cativeiros/${id}`, { nome }, { headers: { Authorization: `Bearer ${token}` } });
-    await load();
-  };
-
-  const updateCativeiroTipoCamarao = async (id, id_tipo_camarao) => {
-    const token = getToken();
-    await axios.patch(`${apiUrl}/cativeiros/${id}`, { id_tipo_camarao }, { headers: { Authorization: `Bearer ${token}` } });
-    await load();
-  };
-
-  const updateCativeiroCondicoesIdeais = async (id, condicoes_ideais) => {
-    const token = getToken();
-    const cativeiro = cativeiros.find(c => c._id === id);
-    if (!cativeiro) return;
-
-    // Para que o backend crie/atualize CondicoesIdeais, é necessário enviar id_tipo_camarao
-    const idTipo = cativeiro.id_tipo_camarao?._id || cativeiro.id_tipo_camarao || '';
-    const data = {
-      id_tipo_camarao: idTipo,
-      temp_media_diaria: condicoes_ideais?.temp_ideal,
-      ph_medio_diario: condicoes_ideais?.ph_ideal,
-      amonia_media_diaria: condicoes_ideais?.amonia_ideal
-    };
-    await axios.patch(`${apiUrl}/cativeiros/${id}`, data, { headers: { Authorization: `Bearer ${token}` } });
-    await load();
+  const solicitarEdicaoCativeiro = async () => {
+    try {
+      const token = getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const { id, cativeiroNome, nome, id_tipo_camarao, data_instalacao, temp_media_diaria, ph_medio_diario, amonia_media_diaria } = editForm;
+      const payload = { cativeiroId: id, cativeiroNome, nome, id_tipo_camarao };
+      if (data_instalacao) payload.data_instalacao = new Date(data_instalacao).toISOString();
+      if (temp_media_diaria !== '') payload.temp_media_diaria = temp_media_diaria;
+      if (ph_medio_diario !== '') payload.ph_medio_diario = ph_medio_diario;
+      if (amonia_media_diaria !== '') payload.amonia_media_diaria = amonia_media_diaria;
+      await axios.post(`${apiUrl}/requests`, { action: 'editar_cativeiro', payload }, { headers });
+      setShowEditModal(false);
+      setAdminNotification({ show: true, message: 'Solicitação de edição enviada ao Master.', type: 'success' });
+    } catch (e) {
+      setAdminNotification({ show: true, message: 'Erro ao enviar solicitação: ' + (e?.response?.data?.error || e.message), type: 'error' });
+    }
   };
 
   // Handlers to upload photo for a cativeiro (used by the "Alterar foto" button)
   const handleCativeiroFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // basic validation
-    if (!file.type.startsWith('image/')) { alert('Por favor selecione uma imagem.'); e.target.value = ''; return; }
-    if (file.size > 5 * 1024 * 1024) { alert('A imagem deve ter menos de 5MB.'); e.target.value = ''; return; }
-    if (!uploadTargetCativeiro) { alert('Alvo inválido para upload.'); e.target.value = ''; return; }
+    if (!file.type.startsWith('image/')) { setAdminNotification({ show: true, message: 'Por favor selecione uma imagem.', type: 'error' }); e.target.value = ''; return; }
+    if (file.size > 5 * 1024 * 1024) { setAdminNotification({ show: true, message: 'A imagem deve ter menos de 5MB.', type: 'error' }); e.target.value = ''; return; }
+    if (!uploadTargetCativeiro) { setAdminNotification({ show: true, message: 'Alvo inválido para upload.', type: 'error' }); e.target.value = ''; return; }
+    const localUrl = URL.createObjectURL(file);
+    setPreviewImage(prev => ({ ...prev, [uploadTargetCativeiro]: localUrl }));
+    setPhotoErrors(prev => { const next = { ...prev }; delete next[uploadTargetCativeiro]; return next; });
     await uploadCativeiroPhoto(uploadTargetCativeiro, file);
     e.target.value = '';
     setUploadTargetCativeiro(null);
@@ -666,11 +649,11 @@ export default function AdminPanel() {
       const form = new FormData();
       form.append('foto', file);
       await axios.post(`${apiUrl}/cativeiros/${cativeiroId}/foto`, form, { headers: { ...headers, 'Content-Type': 'multipart/form-data' } });
-      alert('Foto atualizada com sucesso!');
+      setAdminNotification({ show: true, message: 'Foto atualizada com sucesso!', type: 'success' });
       await load();
     } catch (err) {
-      console.error('Erro ao enviar foto do cativeiro:', err);
-      alert('Falha ao atualizar foto. Veja o console para mais detalhes.');
+      setAdminNotification({ show: true, message: 'Falha ao atualizar foto. Tente novamente.', type: 'error' });
+      setPreviewImage(prev => { const next = { ...prev }; delete next[cativeiroId]; return next; });
     }
   };
 
@@ -1000,23 +983,19 @@ export default function AdminPanel() {
       {tab === 'cativeiros' && (
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Fazendas e Cativeiros</h2>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                style={{
-                  background: '#3b82f6',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                Solicitar novo cativeiro
-              </button>
+            <div>
+              <h2 className={styles.sectionTitle}>Fazendas e Cativeiros</h2>
+              <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                {fazendas.length} fazenda{fazendas.length !== 1 ? 's' : ''} · {cativeiros.length} cativeiro{cativeiros.length !== 1 ? 's' : ''}
+              </p>
             </div>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className={`${styles.btn} ${styles.btnSecondary}`}
+            >
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
+              Solicitar novo cativeiro
+            </button>
           </div>
           {Object.entries(groupedByFazenda()).map(([fzId, cats]) => (
             <div key={fzId} className={styles.accordion}>
@@ -1024,12 +1003,26 @@ export default function AdminPanel() {
                 onClick={() => setExpandedFazenda(prev => ({ ...prev, [fzId]: !prev[fzId] }))}
                 className={`${styles.accordionHeader} ${expandedFazenda[fzId] ? styles.accordionHeaderOpen : ''}`}
               >
-                <span>{getFazendaName(fzId)}</span>
-                <span>{expandedFazenda[fzId] ? '▲' : '▼'}</span>
+                <div className={styles.accordionFarmInfo}>
+                  <div className={styles.accordionFarmName}>
+                    {getFazendaName(fzId)}
+                    <span style={{ marginLeft: 8, fontSize: '0.7rem', fontWeight: 500, background: '#f1f5f9', color: '#64748b', padding: '1px 7px', borderRadius: 20, verticalAlign: 'middle' }}>
+                      {cats.length} cativeiro{cats.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className={styles.accordionFarmAdmin}>
+                    {user?.nome ? `Admin: ${user.nome}` : 'Sem admin responsável'}
+                  </div>
+                </div>
+                <div className={styles.accordionHeaderRight}>
+                  <span className={styles.accordionArrow} style={{ display: 'inline-block', transition: 'transform 0.2s', transform: expandedFazenda[fzId] ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                </div>
               </div>
               {expandedFazenda[fzId] && (
-                <div style={{ padding: 10 }}>
-                  {cats.length === 0 && <div style={{ color: '#888' }}>Nenhum cativeiro nesta fazenda.</div>}
+                <div className={styles.accordionBody}>
+                  {cats.length === 0 && (
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center', padding: '16px 0' }}>Nenhum cativeiro nesta fazenda.</p>
+                  )}
                   {cats.map(cativeiro => (
                     <div key={cativeiro._id} className={styles.subAccordion}>
                       <div
@@ -1037,391 +1030,120 @@ export default function AdminPanel() {
                           const willExpand = !expandedCativeiro[cativeiro._id];
                           setExpandedCativeiro(prev => ({ ...prev, [cativeiro._id]: willExpand }));
                           if (willExpand) {
-                            if (!(Array.isArray(cativeiro.sensores) && cativeiro.sensores.length)) {
-                              loadSensorsForCativeiro(cativeiro._id);
-                            }
-                            if (!cativeiroDieta[cativeiro._id]) {
-                              loadDietaAtual(cativeiro._id);
-                            }
+                            loadSensorsForCativeiro(cativeiro._id);
+                            if (!cativeiroDieta[cativeiro._id]) loadDietaAtual(cativeiro._id);
                           }
                         }}
                         className={`${styles.subAccordionHeader} ${expandedCativeiro[cativeiro._id] ? styles.subAccordionHeaderOpen : ''}`}
                       >
-                        <span>{cativeiro.nome || cativeiro._id}</span>
-                        <span>{expandedCativeiro[cativeiro._id] ? '▲' : '▼'}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 30, height: 30, borderRadius: 7, background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M9 21V12h6v9" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b', lineHeight: 1.2 }}>{cativeiro.nome || cativeiro._id}</div>
+                            {(cativeiro.id_tipo_camarao?.nome || (typeof cativeiro.id_tipo_camarao === 'string' && cativeiro.id_tipo_camarao)) && (
+                              <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 1 }}>
+                                {cativeiro.id_tipo_camarao?.nome || cativeiro.id_tipo_camarao}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {Array.isArray(cativeiro.sensores) && cativeiro.sensores.length > 0 && (
+                            <span style={{ background: '#dbeafe', color: '#1d4ed8', borderRadius: 20, padding: '2px 8px', fontSize: '11px', fontWeight: 600, border: '1px solid #bfdbfe' }}>
+                              {cativeiro.sensores.length} sensor{cativeiro.sensores.length !== 1 ? 'es' : ''}
+                            </span>
+                          )}
+                          <span style={{ color: '#94a3b8', fontSize: 11, display: 'inline-block', transition: 'transform 0.2s', transform: expandedCativeiro[cativeiro._id] ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                        </div>
                       </div>
                       {expandedCativeiro[cativeiro._id] && (
-                        <div style={{ padding: '12px' }}>
-                          {/* Nome do Cativeiro */}
-                          <div style={{ marginBottom: 12 }}>
-                            <label style={{ display: 'block', marginBottom: 4, fontSize: '13px', fontWeight: '600', color: '#374151' }}>
-                              Nome do Cativeiro
-                            </label>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                              <input
-                                type="text"
-                                value={cativeiro.nome}
-                                onChange={(e) => {
-                                  const updatedCativeiros = cativeiros.map(cat =>
-                                    cat._id === cativeiro._id ? { ...cat, nome: e.target.value } : cat
-                                  );
-                                  setCativeiros(updatedCativeiros);
-                                }}
-                                style={{ 
-                                  flex: 1, 
-                                  padding: '6px 10px', 
-                                  borderRadius: 4, 
-                                  border: '1px solid #d1d5db',
-                                  fontSize: '13px'
-                                }}
-                              />
-                              <button 
-                                onClick={() => updateCativeiroNome(cativeiro._id, cativeiro.nome)} 
-                                style={{ 
-                                  background: '#4CAF50', 
-                                  color: '#fff', 
-                                  border: 'none', 
-                                  padding: '6px 12px', 
-                                  borderRadius: 4, 
-                                  cursor: 'pointer',
-                                  fontSize: '13px',
-                                  fontWeight: '500'
-                                }}
+                        <div className={styles.subAccordionBody}>
+                          {/* Action bar */}
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
+                            <button
+                              className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}
+                              onClick={() => {
+                                setEditForm({
+                                  id: cativeiro._id,
+                                  cativeiroNome: cativeiro.nome || '',
+                                  nome: cativeiro.nome || '',
+                                  id_tipo_camarao: String(cativeiro.id_tipo_camarao?._id || cativeiro.id_tipo_camarao || ''),
+                                  data_instalacao: cativeiro.data_instalacao ? new Date(cativeiro.data_instalacao).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+                                  temp_media_diaria: String(cativeiro.condicoes_ideais?.temp_ideal ?? cativeiro.temp_media_diaria ?? ''),
+                                  ph_medio_diario: String(cativeiro.condicoes_ideais?.ph_ideal ?? cativeiro.ph_medio_diario ?? ''),
+                                  amonia_media_diaria: String(cativeiro.condicoes_ideais?.amonia_ideal ?? cativeiro.amonia_media_diaria ?? ''),
+                                });
+                                setShowEditModal(true);
+                              }}
+                            >
+                              <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M15.232 5.232a3 3 0 1 1 4.243 4.243L7.5 21H3v-4.5L15.232 5.232Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              Solicitar Edição
+                            </button>
+                          </div>
+
+                          {/* Info grid */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))', gap: 8, marginBottom: 18 }}>
+                            {[
+                              ['Tipo de camarão', cativeiro.id_tipo_camarao?.nome || (typeof cativeiro.id_tipo_camarao === 'string' ? cativeiro.id_tipo_camarao : '—')],
+                              ['Instalação', cativeiro.data_instalacao ? new Date(cativeiro.data_instalacao).toLocaleDateString('pt-BR') : '—'],
+                              ['Temp ideal', cativeiro.condicoes_ideais?.temp_ideal != null ? `${cativeiro.condicoes_ideais.temp_ideal} °C` : cativeiro.temp_media_diaria ? `${cativeiro.temp_media_diaria} °C` : '—'],
+                              ['pH ideal', String(cativeiro.condicoes_ideais?.ph_ideal ?? cativeiro.ph_medio_diario ?? '—')],
+                              ['Amônia ideal', cativeiro.condicoes_ideais?.amonia_ideal != null ? `${cativeiro.condicoes_ideais.amonia_ideal} mg/L` : cativeiro.amonia_media_diaria ? `${cativeiro.amonia_media_diaria} mg/L` : '—'],
+                            ].map(([label, value]) => (
+                              <div key={label} style={{ background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 12px' }}>
+                                <div style={{ fontSize: '0.67rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
+                                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>{value}</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Foto */}
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Foto</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              {(previewImage[cativeiro._id] || !photoErrors[cativeiro._id]) ? (
+                                <img
+                                  src={previewImage[cativeiro._id] || `${apiUrl}/cativeiros/${cativeiro._id}/foto`}
+                                  alt="Foto do cativeiro"
+                                  style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0 }}
+                                  onError={() => { if (!previewImage[cativeiro._id]) setPhotoErrors(prev => ({ ...prev, [cativeiro._id]: true })); }}
+                                />
+                              ) : (
+                                <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="13" r="3" stroke="#94a3b8" strokeWidth="1.5"/></svg>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => { setUploadTargetCativeiro(cativeiro._id); fileInputRef.current?.click(); }}
+                                className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}
                               >
-                                Salvar
+                                Alterar foto
                               </button>
                             </div>
                           </div>
 
-                          {/* Foto do cativeiro */}
-                          <div style={{ marginBottom: 16 }}>
-                            <button
-                              onClick={() => { setUploadTargetCativeiro(cativeiro._id); fileInputRef.current?.click(); }}
-                              style={{
-                                padding: '8px 12px',
-                                background: '#f3f4f6',
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <span>📷</span>
-                              <span>Alterar foto do cativeiro</span>
-                            </button>
-                          </div>
-
-                          {/* Tipo de Camarão */}
-                          <div style={{ marginBottom: 8 }}>
-                            <strong>Tipo de Camarão:</strong>
-                            <select
-                              value={cativeiro.id_tipo_camarao?._id || cativeiro.id_tipo_camarao || ''}
-                              onChange={(e) => {
-                                const updatedCativeiros = cativeiros.map(cat =>
-                                  cat._id === cativeiro._id ? { ...cat, id_tipo_camarao: e.target.value } : cat
-                                );
-                                setCativeiros(updatedCativeiros);
-                              }}
-                              style={{ marginLeft: 8, padding: '4px 8px', borderRadius: 4, border: '1px solid #ccc' }}
-                            >
-                              <option value="">Selecione um tipo</option>
-                              {tiposCamarao.map(tipo => (
-                                <option key={tipo._id} value={tipo._id}>{tipo.nome}</option>
-                              ))}
-                            </select>
-                            <button 
-                              onClick={() => updateCativeiroTipoCamarao(cativeiro._id, cativeiro.id_tipo_camarao)} 
-                              style={{ marginLeft: 8, background: '#4CAF50', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }}
-                            >
-                              Salvar
-                            </button>
-                          </div>
-
-                          {/* Data de Instalação */}
-                          <div style={{ marginBottom: 12 }}>
-                            <label style={{ display: 'block', marginBottom: 4, fontSize: '13px', fontWeight: '600', color: '#374151' }}>
-                              Data de Instalação
-                            </label>
-                            <div style={{ 
-                              padding: '6px 10px', 
-                              borderRadius: 4, 
-                              border: '1px solid #e5e7eb',
-                              background: '#f9fafb',
-                              color: '#6b7280',
-                              fontSize: '13px'
-                            }}>
-                              {new Date(cativeiro.data_instalacao).toLocaleDateString('pt-BR')}
-                            </div>
-                          </div>
-
-                          {/* Dieta atual */}
-                          <div style={{ marginBottom: 12 }}>
-                            <label style={{ display: 'block', marginBottom: 4, fontSize: '13px', fontWeight: '600', color: '#374151' }}>
-                              Dieta Atual
-                            </label>
-                            <div style={{ 
-                              marginBottom: 8, 
-                              padding: 10, 
-                              border: '1px solid #e5e7eb', 
-                              borderRadius: 6, 
-                              background: '#fafafa' 
-                            }}>
-                              {cativeiroDieta[cativeiro._id] === undefined && (
-                                <div style={{ color: '#6b7280', fontSize: '12px' }}>Carregando...</div>
-                              )}
-                              {cativeiroDieta[cativeiro._id] === null && (
-                                <div style={{ color: '#6b7280', fontSize: '12px' }}>Nenhuma dieta ativa.</div>
-                              )}
-                              {cativeiroDieta[cativeiro._id] && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                    <div>
-                                      <span style={{ fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: 2 }}>Descrição</span>
-                                      <span style={{ fontSize: '12px', fontWeight: '500', color: '#111827' }}>
-                                        {cativeiroDieta[cativeiro._id].descricao || '—'}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span style={{ fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: 2 }}>Qtd (g)</span>
-                                      <span style={{ fontSize: '12px', fontWeight: '500', color: '#111827' }}>
-                                        {typeof cativeiroDieta[cativeiro._id].quantidade !== 'undefined' ? cativeiroDieta[cativeiro._id].quantidade : '—'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  {cativeiroDieta[cativeiro._id].quantidadeRefeicoes && (
-                                    <div>
-                                      <span style={{ fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: 2 }}>Refeições/dia</span>
-                                      <span style={{ fontSize: '12px', fontWeight: '500', color: '#111827' }}>
-                                        {cativeiroDieta[cativeiro._id].quantidadeRefeicoes}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {cativeiroDieta[cativeiro._id].horarios && cativeiroDieta[cativeiro._id].horarios.length > 0 && (
-                                    <div>
-                                      <span style={{ fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: 2 }}>Horários</span>
-                                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                        {cativeiroDieta[cativeiro._id].horarios.map((h, idx) => (
-                                          <span key={idx} style={{
-                                            padding: '2px 8px',
-                                            background: '#fff',
-                                            border: '1px solid #e5e7eb',
-                                            borderRadius: 4,
-                                            fontSize: '12px',
-                                            fontWeight: '500',
-                                            color: '#374151'
-                                          }}>
-                                            {h}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => {
-                                const dietaAtual = cativeiroDieta[cativeiro._id];
-                                if (dietaAtual) {
-                                  const horarios = dietaAtual.horarios || [];
-                                  const qtdRefeicoes = dietaAtual.quantidadeRefeicoes || (horarios.length > 0 ? horarios.length : 1);
-                                  setDietaForm({
-                                    quantidadeRefeicoes: qtdRefeicoes,
-                                    modoHorario: horarios.length > 0 ? 'manual' : 'automatico',
-                                    horariosManuais: horarios.length > 0 ? horarios : Array(qtdRefeicoes).fill(''),
-                                    quantidade: dietaAtual.quantidade || '',
-                                    descricao: dietaAtual.descricao || ''
-                                  });
-                                } else {
-                                  setDietaForm({
-                                    quantidadeRefeicoes: 1,
-                                    modoHorario: 'automatico',
-                                    horariosManuais: [''],
-                                    quantidade: '',
-                                    descricao: ''
-                                  });
-                                }
-                                setDietaModalCativeiroId(cativeiro._id);
-                                setShowDietaModal(true);
-                              }}
-                              style={{
-                                width: '100%',
-                                background: '#3b82f6',
-                                color: '#fff',
-                                border: 'none',
-                                padding: '6px 12px',
-                                borderRadius: 4,
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                                fontWeight: '500'
-                              }}
-                            >
-                              Gerenciar Dieta
-                            </button>
-                          </div>
-
-                          {/* Condições Ideais */}
-                          <div style={{ marginBottom: 12 }}>
-                            <label style={{ display: 'block', marginBottom: 6, fontSize: '13px', fontWeight: '600', color: '#374151' }}>
-                              Condições Ideais
-                            </label>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                              <div>
-                                <label style={{ display: 'block', marginBottom: 4, fontSize: '12px', color: '#6b7280' }}>
-                                  Temp (°C)
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  value={cativeiro.condicoes_ideais?.temp_ideal || ''}
-                                  onChange={(e) => {
-                                    const updatedCativeiros = cativeiros.map(cat =>
-                                      cat._id === cativeiro._id ? { 
-                                        ...cat, 
-                                        condicoes_ideais: { 
-                                          ...cat.condicoes_ideais, 
-                                          temp_ideal: parseFloat(e.target.value) || 0 
-                                        } 
-                                      } : cat
-                                    );
-                                    setCativeiros(updatedCativeiros);
-                                  }}
-                                  style={{ 
-                                    width: '100%', 
-                                    padding: '6px 10px', 
-                                    borderRadius: 4, 
-                                    border: '1px solid #d1d5db',
-                                    fontSize: '13px'
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <label style={{ display: 'block', marginBottom: 4, fontSize: '12px', color: '#6b7280' }}>
-                                  pH
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  value={cativeiro.condicoes_ideais?.ph_ideal || ''}
-                                  onChange={(e) => {
-                                    const updatedCativeiros = cativeiros.map(cat =>
-                                      cat._id === cativeiro._id ? { 
-                                        ...cat, 
-                                        condicoes_ideais: { 
-                                          ...cat.condicoes_ideais, 
-                                          ph_ideal: parseFloat(e.target.value) || 0 
-                                        } 
-                                      } : cat
-                                    );
-                                    setCativeiros(updatedCativeiros);
-                                  }}
-                                  style={{ 
-                                    width: '100%', 
-                                    padding: '6px 10px', 
-                                    borderRadius: 4, 
-                                    border: '1px solid #d1d5db',
-                                    fontSize: '13px'
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <label style={{ display: 'block', marginBottom: 4, fontSize: '12px', color: '#6b7280' }}>
-                                  Amônia (mg/L)
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={cativeiro.condicoes_ideais?.amonia_ideal || ''}
-                                  onChange={(e) => {
-                                    const updatedCativeiros = cativeiros.map(cat =>
-                                      cat._id === cativeiro._id ? { 
-                                        ...cat, 
-                                        condicoes_ideais: { 
-                                          ...cat.condicoes_ideais, 
-                                          amonia_ideal: parseFloat(e.target.value) || 0 
-                                        } 
-                                      } : cat
-                                    );
-                                    setCativeiros(updatedCativeiros);
-                                  }}
-                                  style={{ 
-                                    width: '100%', 
-                                    padding: '6px 10px', 
-                                    borderRadius: 4, 
-                                    border: '1px solid #d1d5db',
-                                    fontSize: '13px'
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <button 
-                              onClick={() => updateCativeiroCondicoesIdeais(cativeiro._id, cativeiro.condicoes_ideais)} 
-                              style={{ 
-                                marginTop: 8,
-                                width: '100%',
-                                background: '#4CAF50', 
-                                color: '#fff', 
-                                border: 'none', 
-                                padding: '6px 12px', 
-                                borderRadius: 4, 
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                                fontWeight: '500'
-                              }}
-                            >
-                              Salvar Condições
-                            </button>
-                          </div>
-
                           {/* Sensores */}
-                          <div style={{ marginBottom: 12 }}>
-                            <label style={{ display: 'block', marginBottom: 6, fontSize: '13px', fontWeight: '600', color: '#374151' }}>
-                              Sensores
-                            </label>
-                            {Array.isArray(cativeiro.sensores) && cativeiro.sensores.length > 0 ? (
-                              <div style={{ 
-                                marginBottom: 10,
-                                display: 'flex', 
-                                gap: 6, 
-                                flexWrap: 'wrap' 
-                              }}>
-                                {cativeiro.sensores.map(s => (
-                                  <div key={s._id || s} style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    padding: '4px 8px',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: 6,
-                                    background: '#f9fafb',
-                                    fontSize: 12,
-                                    color: '#374151'
-                                  }}>
-                                    <span style={{
-                                      padding: '2px 6px',
-                                      borderRadius: 4,
-                                      background: '#eef2ff',
-                                      color: '#3730a3',
-                                      fontWeight: 600,
-                                      textTransform: 'uppercase',
-                                      fontSize: '10px'
-                                    }}>{getSensorType(s) || 'sensor'}</span>
-                                    <span style={{ fontWeight: 500 }}>{s.apelido || '—'}</span>
-                                  </div>
-                                ))}
-                              </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Sensores vinculados</div>
+                            {!Array.isArray(cativeiro.sensores) ? (
+                              <div style={{ color: '#94a3b8', fontSize: '0.82rem', marginBottom: 10 }}>Carregando...</div>
+                            ) : cativeiro.sensores.length === 0 ? (
+                              <div style={{ color: '#94a3b8', fontSize: '0.82rem', fontStyle: 'italic', marginBottom: 10 }}>Nenhum sensor vinculado.</div>
                             ) : (
-                              <div style={{ 
-                                marginBottom: 10,
-                                padding: 8,
-                                background: '#f9fafb',
-                                borderRadius: 4,
-                                color: '#6b7280',
-                                fontSize: '12px'
-                              }}>
-                                Nenhum sensor associado.
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                {cativeiro.sensores.map(s => {
+                                  const tipo = getSensorType(s);
+                                  const SCFG = { temperatura: { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa', label: 'Temp' }, ph: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe', label: 'pH' }, amonia: { bg: '#fdf4ff', color: '#7e22ce', border: '#e9d5ff', label: 'NH₃' }, sensor: { bg: '#f8fafc', color: '#475569', border: '#e2e8f0', label: '—' } };
+                                  const cfg = SCFG[tipo] || SCFG.sensor;
+                                  return (
+                                    <div key={s._id || s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '4px 10px' }}>
+                                      <span style={{ color: cfg.color, fontWeight: 700, fontSize: '10px', textTransform: 'uppercase' }}>{cfg.label}</span>
+                                      <span style={{ color: '#1e293b', fontWeight: 600, fontSize: '12px' }}>{s.apelido || '—'}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -1429,43 +1151,66 @@ export default function AdminPanel() {
                                 const tiposAtuais = new Set((cativeiro.sensores || []).map(s => getSensorType(s)).filter(Boolean));
                                 const allHave = tiposAtuais.has('temperatura') && tiposAtuais.has('ph') && tiposAtuais.has('amonia');
                                 return (
-                                  <button
-                                    onClick={() => solicitarVinculoSensores(cativeiro)}
-                                    disabled={allHave}
-                                    title={allHave ? 'Já possui sensores de temperatura, pH e amônia' : 'Solicitar vínculo de sensores que faltam'}
-                                    style={{ 
-                                      flex: 1,
-                                      background: allHave ? '#9ca3af' : '#3b82f6', 
-                                      color: '#fff', 
-                                      border: 'none', 
-                                      padding: '6px 12px', 
-                                      borderRadius: 4, 
-                                      cursor: allHave ? 'not-allowed' : 'pointer',
-                                      fontSize: '13px',
-                                      fontWeight: '500'
-                                    }}
-                                  >
+                                  <button onClick={() => solicitarVinculoSensores(cativeiro)} disabled={allHave} title={allHave ? 'Já possui sensores de temperatura, pH e amônia' : 'Solicitar vínculo de sensores que faltam'} style={{ flex: 1 }} className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}>
                                     Solicitar Vínculo
                                   </button>
                                 );
                               })()}
-                              <button
-                                onClick={() => abrirSwapModal(cativeiro._id)}
-                                style={{ 
-                                  flex: 1,
-                                  background: '#111827', 
-                                  color: '#fff', 
-                                  border: 'none', 
-                                  padding: '6px 12px', 
-                                  borderRadius: 4, 
-                                  cursor: 'pointer',
-                                  fontSize: '13px',
-                                  fontWeight: '500'
-                                }}
-                              >
+                              <button onClick={() => abrirSwapModal(cativeiro._id)} className={`${styles.btn} ${styles.btnSm}`} style={{ flex: 1, background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}>
                                 Solicitar Troca
                               </button>
                             </div>
+                          </div>
+
+                          {/* Dieta ativa */}
+                          <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Dieta ativa</div>
+                            {cativeiroDieta[cativeiro._id] === undefined && <div style={{ color: '#94a3b8', fontSize: '0.82rem' }}>Carregando...</div>}
+                            {cativeiroDieta[cativeiro._id] === null && (
+                              <div style={{ color: '#94a3b8', fontSize: '0.82rem', fontStyle: 'italic', background: '#f8fafc', border: '1px dashed #e2e8f0', borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>
+                                Nenhuma dieta ativa para este cativeiro.
+                              </div>
+                            )}
+                            {cativeiroDieta[cativeiro._id] && (() => {
+                              const d = cativeiroDieta[cativeiro._id];
+                              const horarios = Array.isArray(d.horarios) && d.horarios.length > 0 ? d.horarios : null;
+                              return (
+                                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 10px', borderRadius: 20, fontSize: '12px', fontWeight: 700, border: '1px solid #bbf7d0' }}>{d.descricao || '—'}</span>
+                                    {typeof d.quantidade !== 'undefined' && <span style={{ fontSize: '0.82rem', color: '#166534' }}><b>{d.quantidade}g</b> por refeição</span>}
+                                    {typeof d.quantidadeRefeicoes !== 'undefined' && <span style={{ fontSize: '0.82rem', color: '#166534' }}><b>{d.quantidadeRefeicoes}×</b> ao dia</span>}
+                                  </div>
+                                  {horarios && (
+                                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                                      <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 700 }}>Horários:</span>
+                                      {horarios.map((h, i) => (
+                                        <span key={i} style={{ background: '#dcfce7', color: '#15803d', padding: '1px 8px', borderRadius: 20, fontSize: '11px', fontWeight: 600, border: '1px solid #bbf7d0' }}>{h}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                            <button
+                              onClick={() => {
+                                const dietaAtual = cativeiroDieta[cativeiro._id];
+                                if (dietaAtual) {
+                                  const horarios = Array.isArray(dietaAtual.horarios) ? dietaAtual.horarios : [];
+                                  const qtd = dietaAtual.quantidadeRefeicoes || (horarios.length > 0 ? horarios.length : 1);
+                                  setDietaForm({ descricao: dietaAtual.descricao || '', quantidade: String(dietaAtual.quantidade || ''), quantidadeRefeicoes: qtd, horarios: Array.from({ length: qtd }, (_, i) => horarios[i] ?? '') });
+                                } else {
+                                  setDietaForm({ descricao: '', quantidade: '', quantidadeRefeicoes: 1, horarios: [''] });
+                                }
+                                setDietaModalCativeiroId(cativeiro._id);
+                                setDietaModalCativeiroNome(cativeiro.nome || '');
+                                setShowDietaModal(true);
+                              }}
+                              style={{ width: '100%' }}
+                              className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}
+                            >
+                              Gerenciar Dieta
+                            </button>
                           </div>
                         </div>
                       )}
@@ -1863,16 +1608,16 @@ export default function AdminPanel() {
                   if (linkForm.allowed.temperatura && linkForm.temperatura) tipos.push('temperatura');
                   if (linkForm.allowed.ph && linkForm.ph) tipos.push('ph');
                   if (linkForm.allowed.amonia && linkForm.amonia) tipos.push('amonia');
-                  if (tipos.length === 0) { alert('Selecione pelo menos um tipo para vincular.'); return; }
+                  if (tipos.length === 0) { setAdminNotification({ show: true, message: 'Selecione pelo menos um tipo para vincular.', type: 'error' }); return; }
                   await axios.post(`${apiUrl}/requests`, {
                     action: 'editar_cativeiro_add_sensor',
                     payload: { cativeiroId: linkForm.cativeiroId, tipos },
                     fazenda: null
                   }, { headers });
                   setShowLinkModal(false);
-                  alert('Solicitação de vínculo enviada para o Master.');
+                  setAdminNotification({ show: true, message: 'Solicitação de vínculo enviada para o Master.', type: 'success' });
                 } catch (e) {
-                  alert('Erro ao solicitar vínculo: ' + (e?.response?.data?.error || e.message));
+                  setAdminNotification({ show: true, message: 'Erro ao solicitar vínculo: ' + (e?.response?.data?.error || e.message), type: 'error' });
                 }
               }} style={{ border: 'none', background: '#3b82f6', color: '#fff', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>Solicitar</button>
             </div>
@@ -2051,6 +1796,42 @@ export default function AdminPanel() {
         </div>
       )}
 
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Solicitar edição">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Nome</label>
+            <input value={editForm.nome} onChange={(e) => setEditForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome do cativeiro" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Tipo de camarão</label>
+            <select value={editForm.id_tipo_camarao} onChange={(e) => setEditForm(f => ({ ...f, id_tipo_camarao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
+              <option value="">Selecione um tipo</option>
+              {tiposCamarao.map(t => <option key={t._id} value={t._id}>{t.nome}</option>)}
+            </select>
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Data de instalação</label>
+            <input type="date" value={editForm.data_instalacao} onChange={(e) => setEditForm(f => ({ ...f, data_instalacao: e.target.value }))} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Temp ideal (°C)</label>
+            <input value={editForm.temp_media_diaria} onChange={(e) => setEditForm(f => ({ ...f, temp_media_diaria: e.target.value }))} placeholder="ex: 26" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>pH ideal</label>
+            <input value={editForm.ph_medio_diario} onChange={(e) => setEditForm(f => ({ ...f, ph_medio_diario: e.target.value }))} placeholder="ex: 7.5" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>Amônia ideal (mg/L)</label>
+            <input value={editForm.amonia_media_diaria} onChange={(e) => setEditForm(f => ({ ...f, amonia_media_diaria: e.target.value }))} placeholder="ex: 0.05" style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
+          </div>
+          <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+            <button onClick={() => setShowEditModal(false)} style={{ border: '1px solid #e5e7eb', background: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={solicitarEdicaoCativeiro} style={{ border: 'none', background: '#3b82f6', color: '#fff', borderRadius: 8, padding: '8px 12px', cursor: 'pointer' }}>Enviar Solicitação</button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal isOpen={showNewTipoModal} onClose={() => setShowNewTipoModal(false)} title="Novo tipo de camarão">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
@@ -2092,194 +1873,80 @@ export default function AdminPanel() {
       </Modal>
 
       {/* Modal de Dieta */}
-      {showDietaModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: '#fff',
-            padding: 24,
-            borderRadius: 8,
-            width: '95%',
-            maxWidth: 600,
-            maxHeight: '90vh',
-            overflow: 'auto',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ marginTop: 0, marginBottom: 20 }}>Configurar Dieta</h3>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Quantidade de refeições */}
-              <div>
-                <label style={{ display: 'block', marginBottom: 6, fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                  Quantidade de refeições por dia (1 a 6):
-                </label>
-                <select
-                  value={dietaForm.quantidadeRefeicoes}
-                  onChange={(e) => {
-                    const num = Number(e.target.value);
-                    setDietaForm(prev => ({
-                      ...prev,
-                      quantidadeRefeicoes: num,
-                      horariosManuais: prev.modoHorario === 'manual' ? Array(num).fill('').map((_, i) => prev.horariosManuais[i] || '') : prev.horariosManuais
-                    }));
-                  }}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px' }}
-                >
-                  {[1, 2, 3, 4, 5, 6].map(num => (
-                    <option key={num} value={num}>{num}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Modo de horário */}
-              <div>
-                <label style={{ display: 'block', marginBottom: 6, fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                  Modo de definição de horários:
-                </label>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      checked={dietaForm.modoHorario === 'automatico'}
-                      onChange={() => setDietaForm(prev => ({ ...prev, modoHorario: 'automatico' }))}
-                    />
-                    <span>Automático (dividir 24h igualmente)</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      checked={dietaForm.modoHorario === 'manual'}
-                      onChange={() => setDietaForm(prev => ({ ...prev, modoHorario: 'manual' }))}
-                    />
-                    <span>Manual</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Horários automáticos (preview) */}
-              {dietaForm.modoHorario === 'automatico' && (
-                <div style={{ padding: 12, background: '#f3f4f6', borderRadius: 6 }}>
-                  <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: 8 }}>
-                    Horários calculados automaticamente:
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {calcularHorariosAutomaticos(dietaForm.quantidadeRefeicoes).map((horario, idx) => (
-                      <span key={idx} style={{
-                        padding: '6px 12px',
-                        background: '#fff',
-                        border: '1px solid #d1d5db',
-                        borderRadius: 6,
-                        fontSize: '14px',
-                        fontWeight: '500'
-                      }}>
-                        {horario}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Horários manuais */}
-              {dietaForm.modoHorario === 'manual' && (
-                <div>
-                  <label style={{ display: 'block', marginBottom: 6, fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                    Horários de alimentação:
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {Array.from({ length: dietaForm.quantidadeRefeicoes }).map((_, idx) => (
-                      <input
-                        key={idx}
-                        type="time"
-                        value={dietaForm.horariosManuais[idx] || ''}
-                        onChange={(e) => {
-                          const novosHorarios = [...dietaForm.horariosManuais];
-                          novosHorarios[idx] = e.target.value;
-                          setDietaForm(prev => ({ ...prev, horariosManuais: novosHorarios }));
-                        }}
-                        style={{ padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px' }}
-                        placeholder={`Refeição ${idx + 1}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Quantidade de ração */}
-              <div>
-                <label style={{ display: 'block', marginBottom: 6, fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                  Quantidade de ração (gramas): <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={dietaForm.quantidade}
-                  onChange={(e) => setDietaForm(prev => ({ ...prev, quantidade: e.target.value }))}
-                  placeholder="Ex: 100"
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px' }}
-                  required
-                />
-              </div>
-
-              {/* Descrição */}
-              <div>
-                <label style={{ display: 'block', marginBottom: 6, fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-                  Descrição (opcional):
-                </label>
-                <input
-                  type="text"
-                  value={dietaForm.descricao}
-                  onChange={(e) => setDietaForm(prev => ({ ...prev, descricao: e.target.value }))}
-                  placeholder="Ex: Ração premium para camarões"
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '14px' }}
-                />
-              </div>
+      <Modal isOpen={showDietaModal} onClose={() => { setShowDietaModal(false); setDietaModalCativeiroId(null); }} title="Gerenciar Dieta" showCloseButton>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Descrição</label>
+            <input
+              value={dietaForm.descricao}
+              onChange={(e) => setDietaForm(f => ({ ...f, descricao: e.target.value }))}
+              placeholder="ex: Ração Premium — Fase crescimento"
+              className={styles.filterInput}
+              style={{ width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Quantidade por refeição (g) <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={dietaForm.quantidade}
+                onChange={(e) => setDietaForm(f => ({ ...f, quantidade: e.target.value }))}
+                placeholder="ex: 2.5"
+                className={styles.filterInput}
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              />
             </div>
-
-            <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => {
-                  setShowDietaModal(false);
-                  setDietaModalCativeiroId(null);
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Refeições por dia</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={dietaForm.quantidadeRefeicoes}
+                onChange={(e) => {
+                  const n = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+                  setDietaForm(f => ({ ...f, quantidadeRefeicoes: n, horarios: Array.from({ length: n }, (_, i) => (f.horarios || [])[i] ?? '') }));
                 }}
-                style={{
-                  padding: '8px 16px',
-                  background: '#6b7280',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => dietaModalCativeiroId && upsertDietaForCativeiro(dietaModalCativeiroId)}
-                disabled={!dietaForm.quantidade || String(dietaForm.quantidade).trim() === ''}
-                style={{
-                  padding: '8px 16px',
-                  background: (!dietaForm.quantidade || String(dietaForm.quantidade).trim() === '') ? '#9ca3af' : '#3b82f6',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: (!dietaForm.quantidade || String(dietaForm.quantidade).trim() === '') ? 'not-allowed' : 'pointer'
-                }}
-              >
-                Salvar
-              </button>
+                className={styles.filterInput}
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              />
             </div>
           </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+              Horários de alimentação
+              <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6 }}>({dietaForm.quantidadeRefeicoes} campo{dietaForm.quantidadeRefeicoes !== 1 ? 's' : ''})</span>
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {Array.from({ length: dietaForm.quantidadeRefeicoes }, (_, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8', minWidth: 70 }}>Refeição {i + 1}</span>
+                  <input
+                    type="time"
+                    value={(dietaForm.horarios || [])[i] || ''}
+                    onChange={(e) => setDietaForm(f => { const hs = [...(f.horarios || [])]; hs[i] = e.target.value; return { ...f, horarios: hs }; })}
+                    className={styles.filterInput}
+                    style={{ flex: 1, boxSizing: 'border-box' }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
+            <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => { setShowDietaModal(false); setDietaModalCativeiroId(null); }}>Cancelar</button>
+            <button
+              className={`${styles.btn} ${styles.btnSuccess}`}
+              disabled={!dietaForm.quantidade || String(dietaForm.quantidade).trim() === ''}
+              onClick={solicitarEdicaoDieta}
+            >
+              Enviar Solicitação
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
       
       {/* Modal para associar funcionário */}
       <Modal isOpen={showAssociarFuncionarioModal} onClose={() => {
