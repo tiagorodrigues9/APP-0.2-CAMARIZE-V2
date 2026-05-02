@@ -1,6 +1,7 @@
 import express from "express";
 const cativeiroRoutes = express.Router();
 import cativeiroController from "../controllers/cativeiroController.js";
+import Cativeiros from "../models/Cativeiros.js";
 import multer from 'multer';
 const upload = multer();
 import Auth from '../middleware/Auth.js';
@@ -342,7 +343,7 @@ cativeiroRoutes.post("/cativeiros/:id/foto", Auth.Authorization, upload.single('
 cativeiroRoutes.get("/cativeiros/:id/foto", async (req, res) => {
   try {
     const { id } = req.params;
-    const cativeiro = await cativeiroController.getCativeiroById({ params: { id } }, { json: () => {} });
+    const cativeiro = await Cativeiros.findById(id).select('foto_cativeiro');
 
     if (!cativeiro || !cativeiro.foto_cativeiro) {
       return res.status(404).send("Sem foto");
