@@ -2,157 +2,94 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import axios from "axios";
 import MemberLayout from "../components/MemberLayout";
-import Loading from "../components/Loading";
-import styles from "./status-cativeiros.module.css";
+import styles from "../styles/panel.module.css";
+
+const STATUS_CFG = {
+  critico: { label: 'Crítico',  icon: '🚨', bg: '#fef2f2', stripe: '#ef4444', badgeBg: '#fee2e2', badgeColor: '#b91c1c', borderColor: '#ef4444' },
+  alerta:  { label: 'Alerta',   icon: '⚠️', bg: '#fffbeb', stripe: '#f59e0b', badgeBg: '#fef9c3', badgeColor: '#92400e', borderColor: '#f59e0b' },
+  ok:      { label: 'Normal',   icon: '✅', bg: '#f0fdf4', stripe: '#10b981', badgeBg: '#dcfce7', badgeColor: '#15803d', borderColor: '#10b981' },
+  default: { label: 'Sem dados',icon: '❓', bg: '#f8fafc', stripe: '#94a3b8', badgeBg: '#f1f5f9', badgeColor: '#475569', borderColor: '#94a3b8' },
+};
+
+const TIPO_ICON = { temperatura: '🌡️', ph: '🧪', amonia: '⚗️' };
 
 export default function StatusCativeirosPage() {
   const router = useRouter();
   const [cativeirosStatus, setCativeirosStatus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filtroStatus, setFiltroStatus] = useState('');
 
   const fetchCativeirosStatus = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null;
-      if (!token) {
-        router.push('/login');
-        return;
-      }
+      const token = typeof window !== 'undefined'
+        ? (sessionStorage.getItem('token') || localStorage.getItem('token'))
+        : null;
+      if (!token) { router.push('/login'); return; }
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
       const response = await axios.get(`${apiUrl}/cativeiros-status`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.data.success) {
         setCativeirosStatus(response.data.cativeiros || []);
       } else {
-        setError('Erro ao carregar status dos cativeiros');
+        setError('Erro ao carregar status dos cativeiros.');
       }
-    } catch (error) {
-      console.error('Erro ao buscar status:', error);
-      if (error.response?.status === 401) {
-        router.push('/login');
-      } else {
-        setError('Erro ao carregar status dos cativeiros');
-      }
+    } catch (err) {
+      if (err.response?.status === 401) router.push('/login');
+      else setError('Erro ao carregar status dos cativeiros.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchCativeirosStatus();
-  }, []);
+  useEffect(() => { fetchCativeirosStatus(); }, []);
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'ok':
-        return '✅';
-      case 'alerta':
-        return '⚠️';
-      case 'critico':
-        return '🚨';
-      default:
-        return '❓';
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'ok':
-        return '#10b981';
-      case 'alerta':
-        return '#f59e0b';
-      case 'critico':
-        return '#ef4444';
-      default:
-        return '#6b7280';
-    }
-  };
-
-  const getStatusBackground = (status) => {
-    switch (status) {
-      case 'ok':
-        return '#f0fdf4';
-      case 'alerta':
-        return '#fffbeb';
-      case 'critico':
-        return '#fef2f2';
-      default:
-        return '#f9fafb';
-    }
-  };
-
-  const formatarDiferenca = (diferenca) => {
-    if (typeof diferenca === 'number') {
-      return diferenca.toFixed(2);
-    }
-    return '#';
-  };
-
-  const getAlertasText = (alertas) => {
-    if (alertas.length === 0) return 'Sem alertas';
-    
-    const alertasText = alertas.map(alerta => {
-      switch (alerta) {
-        case 'alta':
-          return 'altos';
-        case 'media':
-          return 'médios';
-        default:
-          return alerta;
-      }
-    });
-    
-    if (alertasText.length === 1) {
-      return `Alerta ${alertasText[0]}`;
-    } else {
-      return `Alertas ${alertasText.join(' e ')}`;
-    }
-  };
-
-  const formatTime = (datahora) => {
-    if (!datahora) return 'N/A';
-    const date = new Date(datahora);
-    return date.toLocaleTimeString('pt-BR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
-  const formatDate = (datahora) => {
-    if (!datahora) return 'N/A';
+  const formatDateTime = (datahora) => {
+    if (!datahora) return null;
     const date = new Date(datahora);
     const today = new Date();
     const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (date.toDateString() === today.toDateString()) {
-      return 'Hoje';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Ontem';
-    } else {
-      return date.toLocaleDateString('pt-BR');
-    }
+    yesterday.setDate(today.getDate() - 1);
+    const hora = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (date.toDateString() === today.toDateString()) return `Hoje às ${hora}`;
+    if (date.toDateString() === yesterday.toDateString()) return `Ontem às ${hora}`;
+    return `${date.toLocaleDateString('pt-BR')} às ${hora}`;
   };
 
-  const getCativeirosByStatus = (status) => {
-    return cativeirosStatus.filter(cativeiro => cativeiro.status === status);
-  };
+  const formatarDiferenca = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
 
-  const criticoCativeiros = getCativeirosByStatus('critico');
-  const alertaCativeiros = getCativeirosByStatus('alerta');
-  const okCativeiros = getCativeirosByStatus('ok');
+  const criticoCativeiros = cativeirosStatus.filter(c => c.status === 'critico');
+  const alertaCativeiros  = cativeirosStatus.filter(c => c.status === 'alerta');
+  const okCativeiros      = cativeirosStatus.filter(c => c.status === 'ok');
   const hasAnyAtualizacao = cativeirosStatus.some(c => !!c.ultimaAtualizacao);
+
+  const GRUPOS = [
+    { key: 'critico', list: criticoCativeiros },
+    { key: 'alerta',  list: alertaCativeiros },
+    { key: 'ok',      list: okCativeiros },
+  ].filter(g => g.list.length > 0);
+
+  const gruposVisiveis = filtroStatus
+    ? GRUPOS.filter(g => g.key === filtroStatus)
+    : GRUPOS;
+
+  const SUMMARY = [
+    { key: '',        label: 'Total',    count: cativeirosStatus.length, bg: '#f8fafc', color: '#1e293b', border: '#e2e8f0' },
+    { key: 'critico', label: 'Críticos', count: criticoCativeiros.length, bg: '#fef2f2', color: '#b91c1c', border: '#ef4444' },
+    { key: 'alerta',  label: 'Alertas',  count: alertaCativeiros.length,  bg: '#fffbeb', color: '#92400e', border: '#f59e0b' },
+    { key: 'ok',      label: 'OK',       count: okCativeiros.length,       bg: '#f0fdf4', color: '#15803d', border: '#10b981' },
+  ];
 
   if (loading) {
     return (
       <MemberLayout title="Status dos Cativeiros" subtitle="Visão geral de saúde de cada cativeiro">
-        <Loading message="Carregando status dos cativeiros..." />
+        <div className={styles.loadingScreen} style={{ minHeight: 'unset', padding: '60px 0' }}>
+          Carregando status...
+        </div>
       </MemberLayout>
     );
   }
@@ -160,18 +97,16 @@ export default function StatusCativeirosPage() {
   if (error) {
     return (
       <MemberLayout title="Status dos Cativeiros" subtitle="Visão geral de saúde de cada cativeiro">
-        <div className={styles.errorContainer}>
-          <div className={styles.errorContent}>
-            <div className={styles.errorIcon}>❌</div>
-            <h2>Erro ao carregar</h2>
-            <p>{error}</p>
-            <button
-              className={styles.retryButton}
-              onClick={fetchCativeirosStatus}
-            >
-              Tentar novamente
-            </button>
-          </div>
+        <div className={styles.emptyState}>
+          <div className={styles.emptyStateIcon}>⚠️</div>
+          <p className={styles.emptyStateText}>{error}</p>
+          <button
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            style={{ marginTop: 16 }}
+            onClick={fetchCativeirosStatus}
+          >
+            Tentar novamente
+          </button>
         </div>
       </MemberLayout>
     );
@@ -179,268 +114,195 @@ export default function StatusCativeirosPage() {
 
   return (
     <MemberLayout title="Status dos Cativeiros" subtitle="Visão geral de saúde de cada cativeiro">
-      <div className={styles.content}>
-        {/* Resumo */}
-        <div className={styles.summary}>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryNumber}>{cativeirosStatus.length}</span>
-            <span className={styles.summaryLabel}>Total</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryNumber} style={{ color: '#ef4444' }}>
-              {criticoCativeiros.length}
-            </span>
-            <span className={styles.summaryLabel}>Críticos</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryNumber} style={{ color: '#f59e0b' }}>
-              {alertaCativeiros.length}
-            </span>
-            <span className={styles.summaryLabel}>Alertas</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryNumber} style={{ color: '#10b981' }}>
-              {okCativeiros.length}
-            </span>
-            <span className={styles.summaryLabel}>OK</span>
-          </div>
+      <div className={styles.section}>
+
+        {/* Cards de resumo / filtro rápido */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
+          {SUMMARY.map(({ key, label, count, bg, color, border }) => {
+            const active = filtroStatus === key;
+            return (
+              <div
+                key={key || 'total'}
+                onClick={() => key && setFiltroStatus(filtroStatus === key ? '' : key)}
+                style={{
+                  flex: 1, minWidth: 110,
+                  background: bg,
+                  border: `1px solid ${active ? border : '#e2e8f0'}`,
+                  borderRadius: 12,
+                  padding: '14px 18px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  cursor: key ? 'pointer' : 'default',
+                  boxShadow: active ? `0 0 0 2px ${border}` : 'none',
+                  transition: 'box-shadow 0.18s, border-color 0.18s',
+                  textAlign: 'center',
+                }}
+              >
+                <span style={{ fontSize: '1.75rem', fontWeight: 700, color, lineHeight: 1 }}>{count}</span>
+                <span style={{ fontSize: '0.72rem', color, opacity: 0.8, marginTop: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Aviso quando não há parâmetros atuais em nenhum cativeiro (abaixo dos quadrantes) */}
+        {/* Aviso sem dados de sensores */}
         {!hasAnyAtualizacao && cativeirosStatus.length > 0 && (
-          <div className={styles.emptyState} style={{ margin: '12px 0 0 0' }}>
-            <div className={styles.emptyIcon}>📭</div>
-            <h2>Sem parâmetros atuais</h2>
-            <p>Ainda não recebemos leituras para os cativeiros. Assim que houver dados, o status será exibido aqui.</p>
-            <button 
-              className={styles.retryButton}
-              onClick={fetchCativeirosStatus}
-              style={{ marginTop: 12 }}
+          <div className={styles.infoPanel} style={{ marginBottom: 20, marginTop: 0 }}>
+            📭 Ainda não recebemos leituras de sensores. O status será exibido assim que houver dados.
+          </div>
+        )}
+
+        {/* Nenhum cativeiro */}
+        {cativeirosStatus.length === 0 && (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyStateIcon}>📋</div>
+            <p className={styles.emptyStateText}>Nenhum cativeiro encontrado.</p>
+          </div>
+        )}
+
+        {/* Grupos de cativeiros */}
+        {gruposVisiveis.map(({ key, list }, groupIdx) => {
+          const cfg = STATUS_CFG[key] || STATUS_CFG.default;
+          return (
+            <div key={key} style={{ marginBottom: 28 }}>
+
+              {/* Cabeçalho da seção */}
+              <div className={styles.sectionHeader} style={{ marginBottom: 12 }}>
+                <h2 className={styles.sectionTitle}>
+                  {cfg.icon} {cfg.label}s
+                  <span className={`${styles.badge}`} style={{ marginLeft: 10, background: cfg.badgeBg, color: cfg.badgeColor, fontSize: 12 }}>
+                    {list.length}
+                  </span>
+                </h2>
+                {groupIdx === 0 && (
+                  <button
+                    className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}
+                    onClick={fetchCativeirosStatus}
+                    title="Atualizar dados"
+                  >
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                      <path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Atualizar
+                  </button>
+                )}
+              </div>
+
+              {/* Cards de cativeiro */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {list.map((cativeiro) => (
+                  <div
+                    key={cativeiro.id}
+                    className={styles.card}
+                    style={{ borderLeft: `4px solid ${cfg.borderColor}`, background: cfg.bg, padding: '16px 18px' }}
+                  >
+                    {/* Topo do card */}
+                    <div className={styles.cardHeader} style={{ marginBottom: 10 }}>
+                      <div>
+                        <div className={styles.cardTitle}>{cativeiro.nome}</div>
+                        {cativeiro.tipo_camarao && (
+                          <div className={styles.cardMeta} style={{ marginTop: 2 }}>{cativeiro.tipo_camarao}</div>
+                        )}
+                      </div>
+                      <span className={styles.badge} style={{ background: cfg.badgeBg, color: cfg.badgeColor }}>
+                        {cfg.icon} {cativeiro.statusText || cfg.label}
+                      </span>
+                    </div>
+
+                    {/* Alertas detalhados */}
+                    {cativeiro.alertasDetalhados && cativeiro.alertasDetalhados.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {cativeiro.alertasDetalhados.map((alerta, i) => {
+                          const sevColor = alerta.severidade === 'alta' ? '#ef4444' : '#f59e0b';
+                          const sevBg    = alerta.severidade === 'alta' ? '#fee2e2' : '#fef9c3';
+                          return (
+                            <div
+                              key={i}
+                              style={{
+                                background: '#fff',
+                                borderRadius: 8,
+                                padding: '10px 12px',
+                                borderLeft: `3px solid ${sevColor}`,
+                                display: 'flex', flexDirection: 'column', gap: 6,
+                              }}
+                            >
+                              {/* Tipo + severidade */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                <span style={{ fontWeight: 600, fontSize: '0.82rem', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 5, textTransform: 'capitalize' }}>
+                                  {TIPO_ICON[alerta.tipo] || '🔔'} {alerta.tipo}
+                                </span>
+                                <span style={{ background: sevBg, color: sevColor, fontWeight: 700, fontSize: '10px', padding: '2px 8px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                                  {alerta.severidade}
+                                </span>
+                              </div>
+
+                              {/* Mensagem */}
+                              <div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.45 }}>
+                                {alerta.mensagem}
+                              </div>
+
+                              {/* Valores */}
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {[
+                                  { label: 'Atual',     value: alerta.valorAtual },
+                                  { label: 'Ideal',     value: alerta.valorIdeal },
+                                  { label: 'Diferença', value: formatarDiferenca(alerta.diferenca) },
+                                ].map(({ label, value }) => (
+                                  <span key={label} style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', padding: '2px 8px', borderRadius: 6, fontWeight: 500 }}>
+                                    <span style={{ color: '#94a3b8', marginRight: 3 }}>{label}:</span>{value}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.82rem', color: '#64748b', fontStyle: 'italic' }}>
+                        Sem alertas ativos — todos os parâmetros dentro do ideal.
+                      </div>
+                    )}
+
+                    {/* Última atualização */}
+                    {cativeiro.ultimaAtualizacao && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.75rem', color: '#94a3b8' }}>
+                        <svg width="11" height="11" fill="none" viewBox="0 0 24 24">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                          <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        </svg>
+                        {formatDateTime(cativeiro.ultimaAtualizacao)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Botão atualizar quando há filtro ativo ou quando não há grupos */}
+        {filtroStatus && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
+            <button
+              className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}
+              onClick={() => setFiltroStatus('')}
             >
-              Atualizar agora
+              ← Ver todos
+            </button>
+            <button
+              className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}
+              onClick={fetchCativeirosStatus}
+            >
+              <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                <path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Atualizar
             </button>
           </div>
         )}
 
-        {/* Cativeiros Críticos */}
-        {criticoCativeiros.length > 0 && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>
-              <span className={styles.sectionIcon}>🚨</span>
-              Cativeiros Críticos ({criticoCativeiros.length})
-            </h2>
-            <div className={styles.cativeirosList}>
-              {criticoCativeiros.map((cativeiro) => (
-                <div 
-                  key={cativeiro.id} 
-                  className={styles.cativeiroCard}
-                  style={{ 
-                    borderLeftColor: getStatusColor(cativeiro.status),
-                    backgroundColor: getStatusBackground(cativeiro.status)
-                  }}
-                >
-                  <div className={styles.cardHeader}>
-                    <div className={styles.cativeiroInfo}>
-                      <h3>{cativeiro.nome}</h3>
-                      <p>Tipo: {cativeiro.tipo_camarao}</p>
-                    </div>
-                    <div className={styles.statusBadge}>
-                      <span style={{ color: getStatusColor(cativeiro.status) }}>
-                        {cativeiro.statusText}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className={styles.cardDetails}>
-                    <div className={styles.alertasInfo}>
-                      <strong>Alertas ativos:</strong> {getAlertasText(cativeiro.alertas)}
-                      {cativeiro.totalAlertas > 0 && (
-                        <span className={styles.totalAlertas}>
-                          ({cativeiro.totalAlertas} alerta{cativeiro.totalAlertas > 1 ? 's' : ''})
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Detalhes específicos dos alertas */}
-                    {cativeiro.alertasDetalhados && cativeiro.alertasDetalhados.length > 0 && (
-                      <div className={styles.alertasDetalhados}>
-                        <strong>Detalhes dos alertas:</strong>
-                        {cativeiro.alertasDetalhados.map((alerta, index) => (
-                          <div key={index} className={styles.alertaItem}>
-                            <div className={styles.alertaHeader}>
-                              <span className={styles.alertaTipo}>
-                                {alerta.tipo === 'temperatura' ? '🌡️' : 
-                                 alerta.tipo === 'ph' ? '🧪' : 
-                                 alerta.tipo === 'amonia' ? '⚗️' : '🔔'} {alerta.tipo}
-                              </span>
-                              <span className={styles.alertaSeveridade} style={{ 
-                                color: alerta.severidade === 'alta' ? '#ef4444' : '#f59e0b' 
-                              }}>
-                                {alerta.severidade.toUpperCase()}
-                              </span>
-                            </div>
-                            <div className={styles.alertaMensagem}>
-                              {alerta.mensagem}
-                            </div>
-                            <div className={styles.alertaValores}>
-                              <span>Atual: {alerta.valorAtual}</span>
-                              <span>Ideal: {alerta.valorIdeal}</span>
-                              <span>Diferença: {formatarDiferenca(alerta.diferenca)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {cativeiro.ultimaAtualizacao && (
-                      <div className={styles.lastUpdate}>
-                        <strong>Última atualização:</strong> {formatDate(cativeiro.ultimaAtualizacao)} às {formatTime(cativeiro.ultimaAtualizacao)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Cativeiros em Alerta */}
-        {alertaCativeiros.length > 0 && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>
-              <span className={styles.sectionIcon}>⚠️</span>
-              Cativeiros em Alerta ({alertaCativeiros.length})
-            </h2>
-            <div className={styles.cativeirosList}>
-              {alertaCativeiros.map((cativeiro) => (
-                <div 
-                  key={cativeiro.id} 
-                  className={styles.cativeiroCard}
-                  style={{ 
-                    borderLeftColor: getStatusColor(cativeiro.status),
-                    backgroundColor: getStatusBackground(cativeiro.status)
-                  }}
-                >
-                  <div className={styles.cardHeader}>
-                    <div className={styles.cativeiroInfo}>
-                      <h3>{cativeiro.nome}</h3>
-                      <p>Tipo: {cativeiro.tipo_camarao}</p>
-                    </div>
-                    <div className={styles.statusBadge}>
-                      <span style={{ color: getStatusColor(cativeiro.status) }}>
-                        {cativeiro.statusText}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className={styles.cardDetails}>
-                    <div className={styles.alertasInfo}>
-                      <strong>Alertas ativos:</strong> {getAlertasText(cativeiro.alertas)}
-                      {cativeiro.totalAlertas > 0 && (
-                        <span className={styles.totalAlertas}>
-                          ({cativeiro.totalAlertas} alerta{cativeiro.totalAlertas > 1 ? 's' : ''})
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Detalhes específicos dos alertas */}
-                    {cativeiro.alertasDetalhados && cativeiro.alertasDetalhados.length > 0 && (
-                      <div className={styles.alertasDetalhados}>
-                        <strong>Detalhes dos alertas:</strong>
-                        {cativeiro.alertasDetalhados.map((alerta, index) => (
-                          <div key={index} className={styles.alertaItem}>
-                            <div className={styles.alertaHeader}>
-                              <span className={styles.alertaTipo}>
-                                {alerta.tipo === 'temperatura' ? '🌡️' : 
-                                 alerta.tipo === 'ph' ? '🧪' : 
-                                 alerta.tipo === 'amonia' ? '⚗️' : '🔔'} {alerta.tipo}
-                              </span>
-                              <span className={styles.alertaSeveridade} style={{ 
-                                color: alerta.severidade === 'alta' ? '#ef4444' : '#f59e0b' 
-                              }}>
-                                {alerta.severidade.toUpperCase()}
-                              </span>
-                            </div>
-                            <div className={styles.alertaMensagem}>
-                              {alerta.mensagem}
-                            </div>
-                            <div className={styles.alertaValores}>
-                              <span>Atual: {alerta.valorAtual}</span>
-                              <span>Ideal: {alerta.valorIdeal}</span>
-                              <span>Diferença: {formatarDiferenca(alerta.diferenca)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {cativeiro.ultimaAtualizacao && (
-                      <div className={styles.lastUpdate}>
-                        <strong>Última atualização:</strong> {formatDate(cativeiro.ultimaAtualizacao)} às {formatTime(cativeiro.ultimaAtualizacao)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Cativeiros OK */}
-        {okCativeiros.length > 0 && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>
-              <span className={styles.sectionIcon}>✅</span>
-              Cativeiros OK ({okCativeiros.length})
-            </h2>
-            <div className={styles.cativeirosList}>
-              {okCativeiros.map((cativeiro) => (
-                <div 
-                  key={cativeiro.id} 
-                  className={styles.cativeiroCard}
-                  style={{ 
-                    borderLeftColor: getStatusColor(cativeiro.status),
-                    backgroundColor: getStatusBackground(cativeiro.status)
-                  }}
-                >
-                  <div className={styles.cardHeader}>
-                    <div className={styles.cativeiroInfo}>
-                      <h3>{cativeiro.nome}</h3>
-                      <p>Tipo: {cativeiro.tipo_camarao}</p>
-                    </div>
-                    <div className={styles.statusBadge}>
-                      <span style={{ color: getStatusColor(cativeiro.status) }}>
-                        {cativeiro.statusText}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className={styles.cardDetails}>
-                    <div className={styles.alertasInfo}>
-                      <strong>Status:</strong> Sem alertas ativos
-                    </div>
-                    
-                    {cativeiro.ultimaAtualizacao && (
-                      <div className={styles.lastUpdate}>
-                        <strong>Última atualização:</strong> {formatDate(cativeiro.ultimaAtualizacao)} às {formatTime(cativeiro.ultimaAtualizacao)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Estado vazio */}
-        {cativeirosStatus.length === 0 && (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>📋</div>
-            <h2>Nenhum cativeiro encontrado</h2>
-            <p>Não há cativeiros cadastrados no sistema.</p>
-          </div>
-        )}
       </div>
     </MemberLayout>
   );
-} 
+}
