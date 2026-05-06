@@ -1,367 +1,382 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import profileStyles from "../../components/ProfileContent/ProfileContent.module.css";
-import Modal from '../../components/Modal';
+import MemberLayout from '@/components/MemberLayout';
+import Modal from '@/components/Modal';
+import panelStyles from '@/styles/panel.module.css';
 
-const mockResumo = `Durante o período de monitoramento do tanque de camarão, foram observadas variações significativas nos parâmetros ambientais essenciais para a saúde e o bem-estar dos crustáceos. A equipe de monitoramento conduziu análises rigorosas e implementou medidas corretivas para garantir um ambiente aquático estável e propício ao crescimento saudável dos camarões.\n\nTemperatura:\nA temperatura média registrada no tanque durante o período de monitoramento foi de 29,75°C. Observou-se uma leve variação diurna, com picos máximos de até 29,5°C durante as horas mais quentes do dia e mínimos de 26°C durante a noite. Essas variações foram mantidas dentro dos limites aceitáveis para as espécies de camarão cultivada, garantindo um ambiente termicamente estável.\n\nNíveis de Amônia:\nOs níveis de amônia foram monitorados de perto, com uma média de 0,25 ppm (partes por milhão) durante o período de observação. Foram observadas pequenas flutuações nos níveis de amônia, principalmente em resposta às atividades de alimentação dos camarões e à decomposição orgânica no tanque. No entanto, medidas de controle eficazes foram implementadas para manter a amônia dentro dos limites seguros, promovendo a saúde dos animais.\n\npH da Água:\nO pH da água foi mantido em um intervalo ideal entre 7,5 e 8,0 ao longo do período de monitoramento. Esta faixa de pH é crucial para garantir um ambiente estável e favorável ao crescimento saudável dos camarões. O uso de tampões naturais e o controle dos valores ótimos foram fundamentais para evitar oscilações abruptas e manter as condições tamponeantes, garantindo a estabilidade do pH do sistema.\n\nConclusão:\nO monitoramento contínuo e a gestão proativa dos parâmetros ambientais são ações fundamentais para manter a saúde e a produtividade do cativeiro de camarão. A equipe de operação é munida continuamente de orientações baseadas em dados e segue as melhores condutas de manejo do ambiente para garantir a eficiência sustentável e o sucesso da operação de criação de camarão.\n\nEste relatório destina-se exclusivamente à equipe de gestão e operação do tanque de camarão e não deve ser reproduzido ou distribuído sem autorização prévia.`;
+const PERIODO_MAP = {
+  dia:    { label: 'Últimas 24 horas', dias: 1 },
+  semana: { label: 'Últimos 7 dias',   dias: 7 },
+  mes:    { label: 'Últimos 30 dias',  dias: 30 },
+};
+
+const PARAM_CFG = [
+  { key: 'temperatura', label: 'Temperatura', unit: '°C',    decimals: 1, icon: '🌡️', stripe: '#f97316', bg: '#fff7ed', badgeColor: '#c2410c' },
+  { key: 'ph',          label: 'pH',           unit: '',      decimals: 1, icon: '🧪', stripe: '#3b82f6', bg: '#eff6ff', badgeColor: '#1d4ed8' },
+  { key: 'amonia',      label: 'Amônia',       unit: ' mg/L', decimals: 3, icon: '⚗️', stripe: '#a855f7', bg: '#fdf4ff', badgeColor: '#7e22ce' },
+];
+
+function calcStats(dados, field) {
+  const vals = dados.map(d => d[field]).filter(v => typeof v === 'number');
+  if (!vals.length) return { avg: null, min: null, max: null };
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  return { avg, min: Math.min(...vals), max: Math.max(...vals) };
+}
+
+function fmt(v, decimals, unit) {
+  if (v === null || v === undefined) return '—';
+  return `${v.toFixed(decimals)}${unit}`;
+}
 
 export default function RelatorioIndividual() {
   const router = useRouter();
   const { id, periodo: periodoFromQuery } = router.query;
-  const [cativeiro, setCativeiro] = useState(null);
-  const [fotoUrl, setFotoUrl] = useState("/images/cativeiro1.jpg");
   const relatorioRef = useRef();
+
+  const [cativeiro, setCativeiro] = useState(null);
+  const [dados, setDados] = useState([]);
   const [periodo, setPeriodo] = useState(null);
   const [showPeriodoModal, setShowPeriodoModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+  const getToken = () =>
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem('token') || localStorage.getItem('token')
+      : null;
 
   useEffect(() => {
-    async function fetchCativeiro() {
-      if (!id) return;
+    if (!router.isReady) return;
+    if (periodoFromQuery && PERIODO_MAP[periodoFromQuery]) {
+      setPeriodo(periodoFromQuery);
+    } else if (!periodo) {
+      setLoading(false);
+      setShowPeriodoModal(true);
+    }
+  }, [router.isReady, periodoFromQuery]);
+
+  useEffect(() => {
+    if (!id || !router.isReady || !periodo) return;
+    const info = PERIODO_MAP[periodo];
+    if (!info) return;
+
+    async function fetchData() {
+      setLoading(true);
+      setError(null);
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const res = await axios.get(`${apiUrl}/cativeiros/${id}`);
-        setCativeiro(res.data);
-        console.log('Cativeiro carregado:', res.data);
-        
-        // Processar imagem do cativeiro
-        if (res.data?.foto_cativeiro && res.data.foto_cativeiro.data) {
-          try {
-            console.log('Processando imagem do cativeiro:', {
-              hasData: !!res.data.foto_cativeiro.data,
-              dataType: typeof res.data.foto_cativeiro.data,
-              isArray: Array.isArray(res.data.foto_cativeiro.data),
-              dataLength: res.data.foto_cativeiro.data?.length || 'N/A',
-              dataSample: Array.isArray(res.data.foto_cativeiro.data) ? res.data.foto_cativeiro.data.slice(0, 5) : 'N/A'
-            });
-            
-            // Converter buffer para base64 - lidar com diferentes formatos do MongoDB
-            let binary = '';
-            let imageData = res.data.foto_cativeiro.data;
-            
-            // Verificar se os dados são válidos
-            if (!imageData || (Array.isArray(imageData) && imageData.length === 0)) {
-              console.error('Dados da imagem inválidos ou vazios');
-              setFotoUrl("/images/logo.svg");
-              return;
-            }
-            
-            // MongoDB pode retornar os dados em diferentes formatos
-            if (Array.isArray(imageData)) {
-              // Se for um array (formato mais comum)
-              console.log('Processando como array, length:', imageData.length);
-              for (let i = 0; i < imageData.length; i++) {
-                binary += String.fromCharCode(imageData[i]);
-              }
-            } else if (imageData && typeof imageData === 'object' && imageData.buffer) {
-              // Se for um objeto com buffer (formato Buffer do Node.js)
-              console.log('Processando como objeto com buffer');
-              const bytes = new Uint8Array(imageData.buffer);
-              for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
-            } else if (imageData instanceof ArrayBuffer) {
-              // Se for ArrayBuffer
-              console.log('Processando como ArrayBuffer');
-              const bytes = new Uint8Array(imageData);
-              for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
-            } else if (imageData && typeof imageData === 'object' && imageData.data) {
-              // Se for um objeto com propriedade data
-              console.log('Processando como objeto com propriedade data');
-              const data = imageData.data;
-              if (Array.isArray(data)) {
-                for (let i = 0; i < data.length; i++) {
-                  binary += String.fromCharCode(data[i]);
-                }
-              } else if (data instanceof ArrayBuffer) {
-                const bytes = new Uint8Array(data);
-                for (let i = 0; i < bytes.length; i++) {
-                  binary += String.fromCharCode(bytes[i]);
-                }
-              }
-            } else {
-              // Tentar converter como Uint8Array
-              console.log('Processando como Uint8Array');
-              const bytes = new Uint8Array(imageData);
-              for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
-            }
-            
-            if (binary.length > 0) {
-              const base64String = btoa(binary);
-              const imageUrl = `data:image/jpeg;base64,${base64String}`;
-              setFotoUrl(imageUrl);
-              console.log('Imagem convertida com sucesso, tamanho:', binary.length, 'bytes');
-            } else {
-              console.error('Falha na conversão: binary está vazio');
-              setFotoUrl("/images/logo.svg");
-            }
-          } catch (error) {
-            console.error('Erro ao processar imagem do cativeiro:', error);
-            console.error('Error details:', error.message);
-            setFotoUrl("/images/logo.svg");
-          }
-        } else {
-          console.log('Nenhuma imagem encontrada para o cativeiro, usando imagem padrão');
-          console.log('foto_cativeiro:', res.data?.foto_cativeiro);
-          setFotoUrl("/images/logo.svg");
-        }
+        const token = getToken();
+        const headers = { Authorization: `Bearer ${token}` };
+        const [cativRes, histRes] = await Promise.all([
+          axios.get(`${apiUrl}/cativeiros/${id}`, { headers }),
+          axios.get(`${apiUrl}/parametros/historicos/${id}?dias=${info.dias}`, { headers }),
+        ]);
+        setCativeiro(cativRes.data);
+        setDados(histRes.data.dados || []);
       } catch (err) {
-        setCativeiro(null);
-        console.error('Erro ao buscar cativeiro:', err);
+        setError(err.response?.status === 401
+          ? 'Sessão expirada. Faça login novamente.'
+          : 'Erro ao carregar dados do relatório.');
+      } finally {
+        setLoading(false);
       }
     }
-    
-    if (router.isReady && id) {
-      fetchCativeiro();
-    }
-  }, [id, router.isReady]);
+    fetchData();
+  }, [id, periodo, router.isReady]);
 
-  useEffect(() => {
-    // Se o período vier da URL, use ele
-    if (periodoFromQuery) {
-      setPeriodo(periodoFromQuery);
-      setShowPeriodoModal(false);
-    } else if (!periodo) {
-      setShowPeriodoModal(true);
-    } else {
-      setShowPeriodoModal(false);
-    }
-  }, [periodo, periodoFromQuery]);
-
-  // Se não houver periodo, apenas mostre uma mensagem simples
-  if (!periodo) {
-    return (
-      <div style={{ maxWidth: 400, margin: '80px auto', background: '#fff', padding: 24, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', textAlign: 'center' }}>
-        <h2>Período não selecionado</h2>
-        <p>Por favor, volte e selecione um período para o relatório.</p>
-        <button onClick={() => window.history.back()} style={{ marginTop: 16, padding: '8px 18px', borderRadius: 6, border: 'none', background: '#1976d2', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Voltar</button>
-      </div>
-    );
-  }
-
-  const handlePrint = () => {
-    window.print();
+  const handlePeriodoSelect = (p) => {
+    setPeriodo(p);
+    setShowPeriodoModal(false);
+    router.replace(`/rel-individual/${id}?periodo=${p}`, undefined, { shallow: true });
   };
+
+  const handlePrint = () => window.print();
 
   const handleSavePDF = async () => {
-    if (typeof window !== 'undefined') {
-      try {
-        // Usar uma abordagem mais simples e robusta
-        const html2pdf = await import('html2pdf.js');
-        const pdf = html2pdf.default || html2pdf;
-        
-        const opt = {
-          margin: 1,
-          filename: `relatorio-cativeiro-${id}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2 },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-        
-        pdf().set(opt).from(relatorioRef.current).save();
-      } catch (error) {
-        console.error('Erro ao gerar PDF:', error);
-        // Fallback: tentar imprimir
-        alert('Erro ao gerar PDF. Usando impressão como alternativa.');
-        window.print();
-      }
+    try {
+      const html2pdf = await import('html2pdf.js');
+      const pdf = html2pdf.default || html2pdf;
+      pdf().set({
+        margin: 1,
+        filename: `relatorio-${cativeiro?.nome || id}-${periodo}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      }).from(relatorioRef.current).save();
+    } catch {
+      window.print();
     }
   };
 
-  const handlePeriodoSelect = (selectedPeriodo) => {
-    setPeriodo(selectedPeriodo);
-    setShowPeriodoModal(false);
-    // Atualiza a URL sem recarregar a página
-    router.replace(`/rel-individual/${id}?periodo=${selectedPeriodo}`, undefined, { shallow: true });
-  };
-
-  const handleCloseModal = () => {
-    setShowPeriodoModal(false);
-    // Se não há período selecionado, volta para a página anterior
-    if (!periodo) {
-      window.history.back();
-    }
-  };
+  const periodoInfo = PERIODO_MAP[periodo] || {};
+  const fotoUrl = `${apiUrl}/cativeiros/${id}/foto`;
+  const geradoEm = new Date().toLocaleString('pt-BR');
 
   return (
-    <div style={{ minHeight: '100vh', overflowY: 'auto' }}>
+    <MemberLayout
+      title="Relatório Individual"
+      subtitle={cativeiro ? `${cativeiro.nome} — ${periodoInfo.label || ''}` : 'Carregando...'}
+    >
       {/* Modal de seleção de período */}
-      <Modal 
+      <Modal
         isOpen={showPeriodoModal}
-        onClose={handleCloseModal}
-        title={
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <polyline points="14,2 14,8 20,8" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <line x1="16" y1="13" x2="8" y2="13" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <line x1="16" y1="17" x2="8" y2="17" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <polyline points="10,9 9,9 8,9" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <span>Relatório Individual</span>
-          </div>
-        }
-        showCloseButton={true}
+        onClose={() => { if (!periodo) router.back(); else setShowPeriodoModal(false); }}
+        title="Relatório Individual"
+        showCloseButton
       >
-        {/* Descrição */}
-        <div style={{
-          textAlign: 'center',
-          marginBottom: '24px'
-        }}>
-          <p style={{
-            margin: '0',
-            fontSize: '16px',
-            color: '#6b7280',
-            lineHeight: '1.5'
-          }}>
-            Selecione o período para gerar o relatório detalhado do cativeiro <strong>{cativeiro?.nome || `Tanque ${id}`}</strong>
-          </p>
-        </div>
-
-        {/* Opções de período */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        }}>
-          <button 
-            onClick={() => handlePeriodoSelect('dia')}
-            style={{
-              padding: '16px 20px',
-              borderRadius: '12px',
-              border: '2px solid #e5e7eb',
-              background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-              color: '#1f2937',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '16px',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(247, 176, 183, 0.4)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <span>📅 Relatório Diário</span>
-            <span style={{ fontSize: '14px', opacity: 0.9 }}>Últimas 24h</span>
-          </button>
-
-          <button 
-            onClick={() => handlePeriodoSelect('semana')}
-            style={{
-              padding: '16px 20px',
-              borderRadius: '12px',
-              border: '2px solid #e5e7eb',
-              background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-              color: '#1f2937',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '16px',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(247, 176, 183, 0.4)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <span>📊 Relatório Semanal</span>
-            <span style={{ fontSize: '14px', opacity: 0.9 }}>Últimos 7 dias</span>
-          </button>
-
-          <button 
-            onClick={() => handlePeriodoSelect('mes')}
-            style={{
-              padding: '16px 20px',
-              borderRadius: '12px',
-              border: '2px solid #e5e7eb',
-              background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-              color: '#1f2937',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '16px',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(247, 176, 183, 0.4)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <span>📈 Relatório Mensal</span>
-            <span style={{ fontSize: '14px', opacity: 0.9 }}>Últimos 30 dias</span>
-          </button>
+        <p style={{ margin: '0 0 16px', fontSize: '0.9rem', color: '#6b7280', lineHeight: 1.5 }}>
+          Selecione o período para o relatório{cativeiro ? <> de <strong>{cativeiro.nome}</strong></> : ''}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            { key: 'dia',    label: '📅 Relatório Diário',  sub: 'Últimas 24h' },
+            { key: 'semana', label: '📊 Relatório Semanal', sub: 'Últimos 7 dias' },
+            { key: 'mes',    label: '📈 Relatório Mensal',  sub: 'Últimos 30 dias' },
+          ].map(({ key, label, sub }) => (
+            <button
+              key={key}
+              onClick={() => handlePeriodoSelect(key)}
+              className={`${panelStyles.btn} ${panelStyles.btnPrimary}`}
+              style={{ width: '100%', justifyContent: 'space-between', padding: '14px 18px', fontSize: '0.9rem' }}
+            >
+              <span>{label}</span>
+              <span style={{ opacity: 0.75, fontSize: '0.8rem' }}>{sub}</span>
+            </button>
+          ))}
         </div>
       </Modal>
 
-      <div style={{ maxWidth: 600, margin: '40px auto', background: '#fff', padding: 24, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', position: 'relative' }}>
-        <button className={profileStyles.backBtn} onClick={() => window.history.back()} style={{ position: 'absolute', top: 16, left: 16 }}>
-          <span style={{ fontSize: 24, lineHeight: 1 }}>&larr;</span>
-        </button>
-      <div ref={relatorioRef}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
-          <img src="/images/logo.svg" alt="Camarize Logo" style={{ height: 48, marginBottom: 8 }} />
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, textAlign: 'center' }}>RELATÓRIO INDIVIDUAL DETALHADO</h2>
+      <div className={panelStyles.section}>
+        {/* Cabeçalho */}
+        <div className={panelStyles.sectionHeader} style={{ marginBottom: 20 }}>
+          <div>
+            <h2 className={panelStyles.sectionTitle}>Relatório Individual</h2>
+            <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+              {periodoInfo.label} · Gerado em {geradoEm}
+            </p>
+          </div>
+          <div className={panelStyles.sectionActions}>
+            <button
+              className={`${panelStyles.btn} ${panelStyles.btnSecondary} ${panelStyles.btnSm}`}
+              onClick={() => router.back()}
+            >
+              <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                <path d="M19 12H5M12 5l-7 7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Voltar
+            </button>
+            {periodo && (
+              <button
+                className={`${panelStyles.btn} ${panelStyles.btnSecondary} ${panelStyles.btnSm}`}
+                onClick={() => setShowPeriodoModal(true)}
+              >
+                Trocar período
+              </button>
+            )}
+            {!loading && !error && dados.length > 0 && (
+              <>
+                <button
+                  className={`${panelStyles.btn} ${panelStyles.btnSecondary} ${panelStyles.btnSm}`}
+                  onClick={handlePrint}
+                >
+                  🖨️ Imprimir
+                </button>
+                <button
+                  className={`${panelStyles.btn} ${panelStyles.btnPrimary} ${panelStyles.btnSm}`}
+                  onClick={handleSavePDF}
+                >
+                  ⬇️ PDF
+                </button>
+              </>
+            )}
+          </div>
         </div>
-        <h3 style={{ textAlign: 'center', margin: '24px 0 8px 0' }}>{cativeiro?.nome || `Tanque ${id}`}</h3>
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
-          <img src={fotoUrl} alt="Tanque" style={{ width: 320, height: 200, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
-        </div>
-        <p style={{ textAlign: 'center', marginBottom: 24 }}>
-          Período de Monitoramento: {periodo === 'dia' ? 'Últimas 24 horas' : 
-                                   periodo === 'semana' ? 'Últimos 7 dias' : 
-                                   periodo === 'mes' ? 'Últimos 30 dias' : 'Período selecionado'}
-        </p>
-        <div style={{ whiteSpace: 'pre-line', fontSize: 15, marginBottom: 32, pageBreakInside: 'avoid' }}>
-          {mockResumo}
-        </div>
+
+        {loading && (
+          <div className={panelStyles.loadingScreen} style={{ minHeight: 'unset', padding: '60px 0' }}>
+            Carregando dados do relatório...
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className={panelStyles.emptyState}>
+            <div className={panelStyles.emptyStateIcon}>⚠️</div>
+            <p className={panelStyles.emptyStateText}>{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && periodo && (
+          <div ref={relatorioRef}>
+            {/* Card do cativeiro */}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', marginBottom: 20 }}>
+              <div style={{ height: 4, background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)' }} />
+              <div style={{ display: 'flex', gap: 16, padding: '16px 18px', alignItems: 'center' }}>
+                <img
+                  src={fotoUrl}
+                  alt={cativeiro?.nome}
+                  onError={(e) => { e.target.src = '/images/cativeiro1.jpg'; }}
+                  style={{ width: 80, height: 80, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid #e2e8f0' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1e293b' }}>
+                    {cativeiro?.nome}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: 3 }}>
+                    {cativeiro?.id_tipo_camarao?.nome || cativeiro?.id_tipo_camarao || 'Tipo não informado'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                    <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', padding: '2px 8px', borderRadius: 6, fontWeight: 500 }}>
+                      {periodoInfo.label}
+                    </span>
+                    <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', padding: '2px 8px', borderRadius: 6, fontWeight: 500 }}>
+                      {dados.length} leitura{dados.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Condições ideais */}
+            {cativeiro?.condicoes_ideais && (
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', marginBottom: 20 }}>
+                <div style={{ height: 4, background: 'linear-gradient(90deg, #f97316 0%, #3b82f6 50%, #a855f7 100%)' }} />
+                <div style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+                    Condições Ideais
+                  </div>
+                  <div style={{ display: 'flex', gap: 0, flexWrap: 'wrap' }}>
+                    {[
+                      { icon: '🌡️', label: 'Temperatura', value: cativeiro.condicoes_ideais.temp_ideal,   unit: '°C',    bg: '#fff7ed', badgeColor: '#c2410c' },
+                      { icon: '🧪', label: 'pH',           value: cativeiro.condicoes_ideais.ph_ideal,     unit: '',      bg: '#eff6ff', badgeColor: '#1d4ed8' },
+                      { icon: '⚗️', label: 'Amônia',      value: cativeiro.condicoes_ideais.amonia_ideal, unit: ' mg/L', bg: '#fdf4ff', badgeColor: '#7e22ce' },
+                    ].map((p, i, arr) => (
+                      <div
+                        key={p.label}
+                        style={{
+                          flex: 1, minWidth: 120,
+                          padding: '8px 16px',
+                          borderLeft: i > 0 ? '1px solid #f1f5f9' : 'none',
+                          display: 'flex', alignItems: 'center', gap: 12,
+                        }}
+                      >
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: p.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                          {p.icon}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {p.label}
+                          </div>
+                          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: p.badgeColor, lineHeight: 1.2, marginTop: 2 }}>
+                            {p.value != null ? `${p.value}${p.unit}` : '—'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {dados.length === 0 ? (
+              <div className={panelStyles.infoPanel}>
+                📭 Nenhuma leitura registrada no período selecionado. Os dados aparecem assim que os sensores enviarem leituras.
+              </div>
+            ) : (
+              <>
+                {/* Card de estatísticas — mesmo layout do card de condições ideais */}
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', marginBottom: 20 }}>
+                  <div style={{ height: 4, background: 'linear-gradient(90deg, #f97316 0%, #3b82f6 50%, #a855f7 100%)' }} />
+                  <div style={{ padding: '14px 18px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+                      Estatísticas do Período
+                    </div>
+                    <div style={{ display: 'flex', gap: 0, flexWrap: 'wrap' }}>
+                      {PARAM_CFG.map((cfg, i) => {
+                        const stats = calcStats(dados, cfg.key);
+                        return (
+                          <div
+                            key={cfg.key}
+                            style={{
+                              flex: 1, minWidth: 120,
+                              padding: '8px 16px',
+                              borderLeft: i > 0 ? '1px solid #f1f5f9' : 'none',
+                              display: 'flex', alignItems: 'center', gap: 12,
+                            }}
+                          >
+                            <div style={{ width: 36, height: 36, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                              {cfg.icon}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                {cfg.label}
+                              </div>
+                              <div style={{ fontWeight: 700, fontSize: '1.2rem', color: cfg.badgeColor, lineHeight: 1.2, marginTop: 2 }}>
+                                {fmt(stats.avg, cfg.decimals, cfg.unit)}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 3 }}>
+                                Mín {fmt(stats.min, cfg.decimals, cfg.unit)} · Máx {fmt(stats.max, cfg.decimals, cfg.unit)}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabela de leituras */}
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+                  <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>Leituras do período</div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                      {dados.length} registro{dados.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc' }}>
+                          <th style={{ padding: '8px 16px', textAlign: 'left', color: '#64748b', fontWeight: 600, borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap' }}>Data / Hora</th>
+                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#f97316', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>🌡️ Temp.</th>
+                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#3b82f6', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>🧪 pH</th>
+                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#a855f7', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>⚗️ NH₃</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...dados].reverse().slice(0, 50).map((d, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                            <td style={{ padding: '7px 16px', color: '#475569', whiteSpace: 'nowrap' }}>
+                              {new Date(d.datahora).toLocaleString('pt-BR', {
+                                day: '2-digit', month: '2-digit', year: '2-digit',
+                                hour: '2-digit', minute: '2-digit',
+                              })}
+                            </td>
+                            <td style={{ padding: '7px 16px', textAlign: 'right', color: '#1e293b', fontWeight: 500 }}>
+                              {fmt(d.temperatura, 1, '°C')}
+                            </td>
+                            <td style={{ padding: '7px 16px', textAlign: 'right', color: '#1e293b', fontWeight: 500 }}>
+                              {fmt(d.ph, 1, '')}
+                            </td>
+                            <td style={{ padding: '7px 16px', textAlign: 'right', color: '#1e293b', fontWeight: 500 }}>
+                              {fmt(d.amonia, 3, ' mg/L')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {dados.length > 50 && (
+                      <div style={{ padding: '8px 16px', fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center', borderTop: '1px solid #f1f5f9' }}>
+                        Exibindo as 50 leituras mais recentes de {dados.length} registros totais
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-        <button onClick={handlePrint} style={{ padding: '8px 18px', borderRadius: 6, border: 'none', background: '#1976d2', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-          Imprimir
-        </button>
-        <button onClick={handleSavePDF} style={{ padding: '8px 18px', borderRadius: 6, border: 'none', background: '#43a047', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-          Salvar como PDF
-        </button>
-      </div>
-    </div>
-    </div>
+    </MemberLayout>
   );
-} 
+}

@@ -14,7 +14,6 @@ export default function HomeContent({ sidebarRefs }) {
   const [cativeiros, setCativeiros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showPeriodoModal, setShowPeriodoModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [cativeiroToDelete, setCativeiroToDelete] = useState(null);
@@ -25,7 +24,6 @@ export default function HomeContent({ sidebarRefs }) {
   // Refs para o tour
   const infoRef = useRef(null);
   const addRef = useRef(null);
-  const downloadRef = useRef(null);
   const firstCativeiroRef = useRef(null);
 
   const showNotification = (message, type = 'success', actionLabel = null, onAction = null) => {
@@ -126,15 +124,6 @@ export default function HomeContent({ sidebarRefs }) {
     });
   };
 
-  const handleDownloadClick = () => {
-    setShowPeriodoModal(true);
-  };
-  
-  const handlePeriodoSelect = (periodo) => {
-    setShowPeriodoModal(false);
-    router.push(`/rel-geral?periodo=${periodo}`);
-  };
-
   // Mostrar tour apenas na primeira vez (comportamento original)
   useEffect(() => {
     try {
@@ -217,18 +206,6 @@ export default function HomeContent({ sidebarRefs }) {
                 + Cativeiro
               </button>
             )}
-            <button
-              ref={downloadRef}
-              className={`${panelStyles.btn} ${panelStyles.btnPrimary} ${panelStyles.btnSm}`}
-              onClick={handleDownloadClick}
-              title="Baixar Relatório"
-            >
-              <svg width="15" height="15" fill="none" viewBox="0 0 24 24">
-                <path d="M12 4v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <rect x="4" y="18" width="16" height="2" rx="1" fill="currentColor"/>
-              </svg>
-              Relatório
-            </button>
           </div>
         </div>
 
@@ -310,7 +287,6 @@ export default function HomeContent({ sidebarRefs }) {
               { ref: infoRef, title: 'Sobre o Camarize', content: 'Saiba o que é o Camarize e por que monitoramos temperatura, pH e amônia.' },
               ...(cativeiros.length > 0 ? [{ ref: firstCativeiroRef, title: 'Cativeiro', content: 'Clique no cativeiro para abrir o dashboard com dados em tempo real.' }] : []),
               { ref: addRef, title: 'Adicionar cativeiro', content: 'Cadastre um novo cativeiro para começar a monitorar.' },
-              { ref: downloadRef, title: 'Relatórios', content: 'Baixe relatórios com os principais indicadores por período.' },
               { ref: sidebarRefs?.['/status-cativeiros'], title: 'Status', content: 'Veja o status geral de saúde de todos os seus cativeiros.' },
               { ref: sidebarRefs?.['/sensores'], title: 'Sensores', content: 'Gerencie os sensores IoT conectados aos seus cativeiros.' },
               { ref: sidebarRefs?.['/requests'], title: 'Solicitações', content: 'Envie e acompanhe solicitações ao administrador da fazenda.' },
@@ -344,36 +320,6 @@ export default function HomeContent({ sidebarRefs }) {
         />
       )}
       
-      {/* Modal de Relatório Geral */}
-      <Modal
-        isOpen={showPeriodoModal}
-        onClose={() => setShowPeriodoModal(false)}
-        title="Relatório Geral"
-        showCloseButton
-      >
-        <p style={{ margin: '0 0 16px', fontSize: '0.9rem', color: '#6b7280', lineHeight: 1.5 }}>
-          Selecione o período para gerar o relatório geral de todos os cativeiros
-        </p>
-
-        {/* Opções de período */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[
-            { key: 'dia',    label: '📅 Relatório Diário',   sub: 'Últimas 24h' },
-            { key: 'semana', label: '📊 Relatório Semanal',  sub: 'Últimos 7 dias' },
-            { key: 'mes',    label: '📈 Relatório Mensal',   sub: 'Últimos 30 dias' },
-          ].map(({ key, label, sub }) => (
-            <button
-              key={key}
-              onClick={() => handlePeriodoSelect(key)}
-              className={`${panelStyles.btn} ${panelStyles.btnPrimary}`}
-              style={{ width: '100%', justifyContent: 'space-between', padding: '14px 18px', fontSize: '0.9rem' }}
-            >
-              <span>{label}</span>
-              <span style={{ opacity: 0.75, fontSize: '0.8rem' }}>{sub}</span>
-            </button>
-          ))}
-        </div>
-      </Modal>
       {/* Modal de Exclusão */}
       <Modal
         isOpen={showDeleteModal}
