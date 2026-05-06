@@ -1,10 +1,8 @@
 import { useRouter } from "next/router";
 import styles from "./HomeContent.module.css";
 import panelStyles from "@/styles/panel.module.css";
-import RequestButton from "../RequestButton";
 import AuthError from "../AuthError";
-import Loading from "../Loading";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import Notification from "../Notification";
 import Modal from '../Modal';
@@ -42,7 +40,7 @@ export default function HomeContent({ sidebarRefs }) {
     try {
       setLoading(true);
       setError(null);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
       const token = typeof window !== "undefined" ? (sessionStorage.getItem('token') || localStorage.getItem("token")) : null;
       if (!token) {
         setError('Você precisa estar logado para acessar esta página');
@@ -238,118 +236,20 @@ export default function HomeContent({ sidebarRefs }) {
         {cativeiros.length === 0 ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyMessage}>Sem cativeiros cadastrados</div>
-            <div style={{
-              marginTop: '12px',
-              width: '100%',
-              maxWidth: 480,
-              border: '1px solid #dbeafe',
-              background: '#eff6ff',
-              color: '#1e40af',
-              borderRadius: 12,
-              padding: '16px'
-            }}>
+            <div className={panelStyles.infoPanel} style={{ maxWidth: 480 }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Comece por aqui</div>
-              <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 12 }}>Crie seu primeiro cativeiro e conecte sensores para ver dados no dashboard.</div>
+              <div style={{ fontSize: 13, marginBottom: 12 }}>Crie seu primeiro cativeiro e conecte sensores para ver dados no dashboard.</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {role !== 'membro' && (
-                  <button onClick={() => router.push('/create-cativeiros')} style={{
-                    background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontWeight: 600
-                  }}>+ Cadastrar cativeiro</button>
+                  <button className={`${panelStyles.btn} ${panelStyles.btnPrimary} ${panelStyles.btnSm}`} onClick={() => router.push('/create-cativeiros')}>+ Cadastrar cativeiro</button>
                 )}
-                <button onClick={() => router.push('/sensores')} style={{
-                  background: '#111827', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontWeight: 600
-                }}>🔧 Gerenciar sensores</button>
+                <button className={`${panelStyles.btn} ${panelStyles.btnSecondary} ${panelStyles.btnSm}`} onClick={() => router.push('/sensores')}>🔧 Gerenciar sensores</button>
               </div>
             </div>
           </div>
         ) : (
           cativeiros.map((cativeiro, idx) => {
-            // Converter buffer para base64 de forma robusta (vários formatos possíveis do MongoDB)
-            let fotoUrl = "/images/cativeiro1.jpg";
-            try {
-              const fc = cativeiro.foto_cativeiro;
-              if (fc) {
-                let binary = '';
-                let imageData = fc;
-
-                if (fc.data) {
-                  imageData = fc.data;
-                }
-
-                // Caso venha como string base64 direta
-                if (typeof imageData === 'string') {
-                  const str = imageData.trim();
-                  if (str.length === 0) {
-                    fotoUrl = "/images/cativeiro1.jpg";
-                  } else if (str.startsWith('data:image')) {
-                    fotoUrl = str; // já é um data URL
-                  } else if (str.length > 0) {
-                    // assume base64 simples - validar que não está vazia
-                    fotoUrl = `data:image/jpeg;base64,${str}`;
-                  }
-                }
-
-                // Caso venha no formato Extended JSON do Mongo
-                if (imageData && typeof imageData === 'object' && imageData.$binary && imageData.$binary.base64) {
-                  const base64Str = imageData.$binary.base64;
-                  if (base64Str && typeof base64Str === 'string' && base64Str.trim().length > 0) {
-                    fotoUrl = `data:image/jpeg;base64,${base64Str}`;
-                  } else {
-                    fotoUrl = "/images/cativeiro1.jpg";
-                  }
-                }
-
-                if (Array.isArray(imageData)) {
-                  for (let i = 0; i < imageData.length; i++) binary += String.fromCharCode(imageData[i]);
-                } else if (imageData && typeof imageData === 'object' && imageData.buffer) {
-                  const bytes = new Uint8Array(imageData.buffer);
-                  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-                } else if (imageData instanceof ArrayBuffer) {
-                  const bytes = new Uint8Array(imageData);
-                  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-                } else if (imageData && typeof imageData === 'object' && imageData.data) {
-                  const data = imageData.data;
-                  if (Array.isArray(data)) {
-                    for (let i = 0; i < data.length; i++) binary += String.fromCharCode(data[i]);
-                  } else if (data instanceof ArrayBuffer) {
-                    const bytes = new Uint8Array(data);
-                    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-                  }
-                }
-
-                if (!fotoUrl && binary.length > 0 && typeof window !== 'undefined') {
-                  try {
-                    const base64String = window.btoa(binary);
-                    if (base64String && base64String.length > 0) {
-                      fotoUrl = `data:image/jpeg;base64,${base64String}`;
-                    }
-                  } catch (btoaError) {
-                    console.error('Erro ao converter para base64:', btoaError);
-                    fotoUrl = "/images/cativeiro1.jpg";
-                  }
-                }
-              }
-            } catch (imgError) {
-              console.error('Erro ao processar imagem do cativeiro:', imgError);
-              fotoUrl = "/images/cativeiro1.jpg";
-            }
-            
-            // Garantir que fotoUrl é válida antes de usar
-            if (!fotoUrl || 
-                (typeof fotoUrl !== 'string') ||
-                (fotoUrl.trim().length === 0) ||
-                (!fotoUrl.startsWith('/') && !fotoUrl.startsWith('data:image') && !fotoUrl.startsWith('http') && !fotoUrl.startsWith('https'))) {
-              fotoUrl = "/images/cativeiro1.jpg";
-            }
-            
-            // Validar data URLs - garantir que o base64 não está vazio
-            if (fotoUrl.startsWith('data:image')) {
-              const base64Part = fotoUrl.split(',')[1];
-              if (!base64Part || base64Part.trim().length === 0) {
-                fotoUrl = "/images/cativeiro1.jpg";
-              }
-            }
-            
+            const fotoUrl = `${process.env.NEXT_PUBLIC_API_URL || '/api'}/cativeiros/${cativeiro._id}/foto`;
             return (
               <div
                 key={cativeiro._id}
@@ -362,10 +262,7 @@ export default function HomeContent({ sidebarRefs }) {
                   src={fotoUrl}
                   alt={`Cativeiro ${idx + 1}`}
                   className={styles.cativeiroImg}
-                  onError={(e) => {
-                    console.error('Erro ao carregar imagem do cativeiro:', fotoUrl);
-                    e.target.src = "/images/cativeiro1.jpg";
-                  }}
+                  onError={(e) => { e.target.src = "/images/cativeiro1.jpg"; }}
                 />
                 <div className={styles.cativeiroInfo}>
                   <div className={styles.cativeiroNome}>{cativeiro.nome || `Cativeiro ${idx + 1}`}</div>
@@ -448,245 +345,57 @@ export default function HomeContent({ sidebarRefs }) {
       )}
       
       {/* Modal de Relatório Geral */}
-      <Modal 
+      <Modal
         isOpen={showPeriodoModal}
         onClose={() => setShowPeriodoModal(false)}
-        title={
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M9 12l2 2 4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="12" cy="12" r="10" stroke="#fff" strokeWidth="2" fill="none"/>
-                <path d="M12 4v12m0 0l-4-4m4 4l4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <span>Relatório Geral</span>
-          </div>
-        }
-        showCloseButton={true}
+        title="Relatório Geral"
+        showCloseButton
       >
-        {/* Descrição */}
-        <div style={{
-          textAlign: 'center',
-          marginBottom: '24px'
-        }}>
-          <p style={{
-            margin: '0',
-            fontSize: '16px',
-            color: '#6b7280',
-            lineHeight: '1.5'
-          }}>
-            Selecione o período para gerar o relatório geral de todos os cativeiros
-          </p>
-        </div>
+        <p style={{ margin: '0 0 16px', fontSize: '0.9rem', color: '#6b7280', lineHeight: 1.5 }}>
+          Selecione o período para gerar o relatório geral de todos os cativeiros
+        </p>
 
         {/* Opções de período */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        }}>
-          <button 
-            onClick={() => handlePeriodoSelect('dia')}
-            style={{
-              padding: '16px 20px',
-              borderRadius: '12px',
-              border: '2px solid #e5e7eb',
-              background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-              color: '#1f2937',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '16px',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(247, 176, 183, 0.4)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <span>📅 Relatório Diário</span>
-            <span style={{ fontSize: '14px', opacity: 0.9 }}>Últimas 24h</span>
-          </button>
-
-          <button 
-            onClick={() => handlePeriodoSelect('semana')}
-            style={{
-              padding: '16px 20px',
-              borderRadius: '12px',
-              border: '2px solid #e5e7eb',
-              background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-              color: '#1f2937',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '16px',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(247, 176, 183, 0.4)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <span>📊 Relatório Semanal</span>
-            <span style={{ fontSize: '14px', opacity: 0.9 }}>Últimos 7 dias</span>
-          </button>
-
-          <button 
-            onClick={() => handlePeriodoSelect('mes')}
-            style={{
-              padding: '16px 20px',
-              borderRadius: '12px',
-              border: '2px solid #e5e7eb',
-              background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-              color: '#1f2937',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '16px',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(247, 176, 183, 0.4)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <span>📈 Relatório Mensal</span>
-            <span style={{ fontSize: '14px', opacity: 0.9 }}>Últimos 30 dias</span>
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            { key: 'dia',    label: '📅 Relatório Diário',   sub: 'Últimas 24h' },
+            { key: 'semana', label: '📊 Relatório Semanal',  sub: 'Últimos 7 dias' },
+            { key: 'mes',    label: '📈 Relatório Mensal',   sub: 'Últimos 30 dias' },
+          ].map(({ key, label, sub }) => (
+            <button
+              key={key}
+              onClick={() => handlePeriodoSelect(key)}
+              className={`${panelStyles.btn} ${panelStyles.btnPrimary}`}
+              style={{ width: '100%', justifyContent: 'space-between', padding: '14px 18px', fontSize: '0.9rem' }}
+            >
+              <span>{label}</span>
+              <span style={{ opacity: 0.75, fontSize: '0.8rem' }}>{sub}</span>
+            </button>
+          ))}
         </div>
       </Modal>
       {/* Modal de Exclusão */}
-      <Modal 
+      <Modal
         isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setCativeiroToDelete(null);
-        }}
-        title={
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: '#fef3c7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <span>Confirmar Exclusão</span>
-          </div>
-        }
+        onClose={() => { setShowDeleteModal(false); setCativeiroToDelete(null); }}
+        title="Confirmar Exclusão"
         showCloseButton={false}
       >
-        {/* Mensagem */}
-        <div style={{
-          textAlign: 'center',
-          marginBottom: '24px'
-        }}>
-          <p style={{
-            margin: '0',
-            fontSize: '16px',
-            color: '#6b7280',
-            lineHeight: '1.5',
-            maxWidth: '280px'
-          }}>
-            Tem certeza que deseja excluir este cativeiro? Esta ação não pode ser desfeita.
-          </p>
-        </div>
+        <p style={{ margin: '0 0 16px', fontSize: '0.9rem', color: '#6b7280', lineHeight: 1.5 }}>
+          Tem certeza que deseja excluir este cativeiro? Esta ação não pode ser desfeita.
+        </p>
         
         {/* Botões */}
-        <div style={{
-          display: 'flex',
-          gap: '12px',
-          width: '100%'
-        }}>
-          <button 
-            onClick={() => {
-              setShowDeleteModal(false);
-              setCativeiroToDelete(null);
-            }}
-            style={{
-              flex: 1,
-              padding: '12px 20px',
-              borderRadius: '8px',
-              border: '1px solid #d1d5db',
-              background: '#fff',
-              color: '#374151',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '14px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.background = '#f9fafb';
-              e.target.style.borderColor = '#9ca3af';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.background = '#fff';
-              e.target.style.borderColor = '#d1d5db';
-            }}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+          <button
+            className={`${panelStyles.btn} ${panelStyles.btnSecondary}`}
+            onClick={() => { setShowDeleteModal(false); setCativeiroToDelete(null); }}
           >
             Cancelar
           </button>
-          <button 
+          <button
+            className={`${panelStyles.btn} ${panelStyles.btnDanger}`}
             onClick={confirmDelete}
-            style={{
-              flex: 1,
-              padding: '12px 20px',
-              borderRadius: '8px',
-              border: 'none',
-              background: '#dc2626',
-              color: '#fff',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '14px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.background = '#b91c1c';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.background = '#dc2626';
-            }}
           >
             Excluir
           </button>
@@ -708,7 +417,7 @@ export default function HomeContent({ sidebarRefs }) {
             const ids = Object.keys(pendingDeletion);
             if (ids.length === 0) return;
             const idToDelete = ids[0];
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
             const token = typeof window !== "undefined" ? (sessionStorage.getItem('token') || localStorage.getItem("token")) : null;
             try {
               await axios.delete(`${apiUrl}/cativeiros/${idToDelete}`, {
@@ -735,34 +444,11 @@ export default function HomeContent({ sidebarRefs }) {
       )}
 
       {/* Modal de Informações */}
-      <Modal 
+      <Modal
         isOpen={showInfoModal}
         onClose={() => setShowInfoModal(false)}
-        title={
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: '#dbeafe',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="#3B82F6" strokeWidth="2" fill="none"/>
-                <path d="M12 16V12" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="12" cy="8" r="1" fill="#3B82F6"/>
-              </svg>
-            </div>
-            <span>Sobre o Camarize</span>
-          </div>
-        }
-        showCloseButton={true}
+        title="Sobre o Camarize"
+        showCloseButton
       >
         {/* O que é o Camarize */}
         <div>
@@ -948,33 +634,8 @@ export default function HomeContent({ sidebarRefs }) {
         </div>
 
         {/* Botão de fechar */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          paddingTop: '16px',
-          borderTop: '1px solid #e5e7eb',
-          marginTop: 'auto'
-        }}>
-          <button 
-            onClick={() => setShowInfoModal(false)}
-            style={{
-              padding: '12px 24px',
-              borderRadius: '8px',
-              border: 'none',
-              background: '#3B82F6',
-              color: '#fff',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '14px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.background = '#2563eb';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.background = '#3B82F6';
-            }}
-          >
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+          <button className={`${panelStyles.btn} ${panelStyles.btnPrimary}`} onClick={() => setShowInfoModal(false)}>
             Entendi!
           </button>
         </div>
