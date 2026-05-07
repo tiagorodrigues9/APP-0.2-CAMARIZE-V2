@@ -1,5 +1,5 @@
 import express from "express";
-import { cadastrarParametros, getParametrosAtuais, getParametrosHistoricos, getDadosDashboard } from "../controllers/parametrosController.js";
+import { cadastrarParametros, getParametrosAtuais, getParametrosHistoricos, getDadosDashboard, streamDashboard } from "../controllers/parametrosController.js";
 import Auth from "../middleware/Auth.js";
 
 const router = express.Router();
@@ -136,5 +136,7 @@ router.get("/historicos/:cativeiroId", Auth.Authorization, getParametrosHistoric
  *                       type: number
  */
 router.get("/dashboard/:cativeiroId", Auth.Authorization, getDadosDashboard);
+
+router.get("/stream/:cativeiroId", Auth.AuthorizationSSE, streamDashboard);
 
 export default router;

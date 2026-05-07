@@ -56,7 +56,36 @@ const RequireRole = (roles) => (req, res, next) => {
   next();
 };
 
-export default { Authorization, RequireRole };
+// Variante do Authorization para rotas SSE — aceita token via query param
+// porque EventSource do browser não suporta headers customizados.
+const AuthorizationSSE = async (req, res, next) => {
+  const rawToken = req.headers["authorization"]?.split(" ")[1] || req.query.token;
+  if (!rawToken) return res.status(401).json({ error: "Token inválido." });
+
+  let data;
+  try {
+    data = jwt.verify(rawToken, userController.JWTSecret);
+  } catch {
+    return res.status(401).json({ error: "Token inválido. Não autorizado." });
+  }
+
+  try {
+    const user = await userService.getById(data.id);
+    if (!user) return res.status(401).json({ error: "Usuário não encontrado." });
+    if ((user.tokenVersion ?? 0) !== (data.tokenVersion ?? 0)) {
+      return res.status(401).json({ error: "Sessão expirada. Faça login novamente." });
+    }
+    req.token = rawToken;
+    req.loggedUser = { id: data.id, email: data.email, role: data.role, tokenVersion: data.tokenVersion };
+  } catch (err) {
+    console.error("Erro na verificação do token SSE:", err);
+    return res.status(500).json({ error: "Erro de autenticação." });
+  }
+
+  next();
+};
+
+export default { Authorization, AuthorizationSSE, RequireRole };
 
 // Middleware global: bloqueia membros de realizar escritas, exceto em rotas públicas
 export const BlockMembersWrite = async (req, res, next) => {

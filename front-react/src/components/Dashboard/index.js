@@ -12,41 +12,54 @@ const SENSOR_CFG = [
   { key: 'amoniaLivre',  label: 'NH₃ livre',     unit: ' mg/L', decimals: 2, icon: '⚗️', stripe: '#7c3aed', bg: '#f5f3ff', badgeColor: '#5b21b6' },
 ];
 
-const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+// Default ranges for typical aquaculture values.
+// If data exceeds a default, the range expands by adding one full default-interval
+// as headroom — this keeps each parameter's expansion proportional to its own scale,
+// so out-of-range dots from different parameters land at different Y positions.
+const DEFAULT_RANGES = {
+  temperatura: { min: 15, max: 35 },
+  ph:          { min: 5,  max: 9  },
+  amonia:      { min: 0,  max: 0.6 },
+};
 
-function normalizeSerie(values, chartH, padTop, padBot) {
-  const nums = values.filter(v => typeof v === 'number');
-  let min = nums.length ? Math.min(...nums) : 0;
-  let max = nums.length ? Math.max(...nums) : 1;
-  if (min === max) { min -= 0.5; max += 0.5; }
-  const usable = chartH - padTop - padBot;
-  return values.map(v => {
-    const n = typeof v === 'number' ? v : (min + max) / 2;
-    return padTop + (1 - (n - min) / (max - min)) * usable;
-  });
+function computeRange(serie, campo) {
+  const { min: defMin, max: defMax } = DEFAULT_RANGES[campo];
+  const nums = serie.filter(v => v !== null);
+  if (!nums.length) return { min: defMin, max: defMax };
+  const dataMax = Math.max(...nums);
+  const dataMin = Math.min(...nums);
+  if (dataMax <= defMax && dataMin >= defMin) return { min: defMin, max: defMax };
+  const defInterval = defMax - defMin;
+  const min = Math.min(defMin, dataMin - defInterval * 0.1);
+  const max = Math.max(defMax, dataMax) + defInterval;
+  return { min, max };
 }
+
+const SVG_W = 600, SVG_H = 160, PAD_L = 10, PAD_R = 16, PAD_T = 14, PAD_BOT = 28;
 
 export default function Dashboard() {
   const router = useRouter();
   const { id } = router.query;
 
-  const [dadosAtuais, setDadosAtuais]   = useState(null);
+  const [dadosAtuais, setDadosAtuais]     = useState(null);
   const [dadosSemanais, setDadosSemanais] = useState([]);
   const [nomeCativeiro, setNomeCativeiro] = useState('');
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState(null);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState(null);
   const [showRelatorio, setShowRelatorio] = useState(false);
+  const [tooltip, setTooltip]             = useState(null);
 
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+  const getToken = () => typeof window !== 'undefined'
+    ? (sessionStorage.getItem('token') || localStorage.getItem('token'))
+    : null;
+
+  // Busca pontual via REST — usada pelo botão Atualizar como fallback
   const buscar = async () => {
     if (!id) return;
+    const token = getToken();
+    if (!token) { setError('Token não encontrado. Faça login novamente.'); return; }
     try {
-      setLoading(true);
-      setError(null);
-      const token = typeof window !== 'undefined'
-        ? (sessionStorage.getItem('token') || localStorage.getItem('token'))
-        : null;
-      if (!token) { setError('Token não encontrado. Faça login novamente.'); return; }
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
       const { data } = await axios.get(`${apiUrl}/parametros/dashboard/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -57,12 +70,35 @@ export default function Dashboard() {
       setError(err.response?.status === 401
         ? 'Sessão expirada. Faça login novamente.'
         : 'Erro ao carregar dados do dashboard.');
-    } finally {
-      setLoading(false);
     }
   };
 
-  useEffect(() => { if (id) buscar(); }, [id]);
+  // Conexão SSE — dados chegam automaticamente a cada nova leitura do sensor
+  useEffect(() => {
+    if (!id) return;
+    const token = getToken();
+    if (!token) { setError('Token não encontrado. Faça login novamente.'); setLoading(false); return; }
+
+    setLoading(true);
+    const es = new EventSource(`${apiUrl}/parametros/stream/${id}?token=${encodeURIComponent(token)}`);
+
+    es.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      setDadosAtuais(data.dadosAtuais);
+      setDadosSemanais(data.dadosSemanais || []);
+      setNomeCativeiro(data.cativeiro?.nome || '');
+      setError(null);
+      setLoading(false);
+    };
+
+    es.onerror = () => {
+      setError('Conexão em tempo real perdida. Use o botão Atualizar.');
+      setLoading(false);
+      es.close();
+    };
+
+    return () => es.close();
+  }, [id]);
 
   const fmt = (v, dec, unit) => {
     if (v === '#' || v === null || v === undefined) return '—';
@@ -76,27 +112,89 @@ export default function Dashboard() {
     amoniaLivre: typeof dadosAtuais?.amonia === 'number' ? dadosAtuais.amonia * 0.2 : null,
   };
 
-  // Série semanal — padeia com valor padrão se faltar dados
-  const padTo7 = (campo, padrao) => {
-    const base = dadosSemanais.length > 0
-      ? dadosSemanais.map(d => { const v = d[campo]; return (v === '#' || v == null) ? padrao : v; })
-      : Array(7).fill(padrao);
-    while (base.length < 7) base.unshift(padrao);
-    return base.slice(-7);
-  };
-  const tempSerie  = padTo7('temperatura', 26);
-  const phSerie    = padTo7('ph', 7.5);
-  const amoniaSerie = padTo7('amonia', 0.05);
+  // Preserve nulls — null = gap in chart (no fake padding)
+  const extractSerie = (campo) =>
+    dadosSemanais.map(d => {
+      if (!d) return null;
+      const v = d[campo];
+      return (v === '#' || v == null) ? null : v;
+    });
 
-  // Chart SVG
-  const SVG_W = 340, SVG_H = 120, PAD_L = 28, PAD_R = 12, PAD_T = 10, PAD_BOT = 22;
+  const tempSerie   = extractSerie('temperatura');
+  const phSerie     = extractSerie('ph');
+  const amoniaSerie = extractSerie('amonia');
+
+  const temDadosSemanais = [...tempSerie, ...phSerie, ...amoniaSerie].some(v => v !== null);
+
+  // Ranges: default bounds expanded to fit data if needed
+  const tempRange   = computeRange(tempSerie,   'temperatura');
+  const phRange     = computeRange(phSerie,     'ph');
+  const amoniaRange = computeRange(amoniaSerie, 'amonia');
+
+  // Real date labels: "DD/MM" from API's "YYYY-MM-DD" field
+  const labels = dadosSemanais.map(d => {
+    if (!d?.data) return '—';
+    const [, month, day] = d.data.split('-');
+    return `${day}/${month}`;
+  });
+
+  // Chart helpers
   const chartW = SVG_W - PAD_L - PAD_R;
-  const stepX  = chartW / 6;
+  const stepX  = chartW / 6; // always 7 points, 6 intervals
   const xOf    = (i) => PAD_L + i * stepX;
-  const tempY   = normalizeSerie(tempSerie,  SVG_H, PAD_T, PAD_BOT);
-  const phY     = normalizeSerie(phSerie,    SVG_H, PAD_T, PAD_BOT);
-  const amoniaY = normalizeSerie(amoniaSerie, SVG_H, PAD_T, PAD_BOT);
-  const pts     = (yArr) => yArr.map((y, i) => `${xOf(i).toFixed(1)},${y.toFixed(1)}`).join(' ');
+
+  const toY = (v, range) => {
+    if (v === null) return null;
+    const { min, max } = range;
+    return PAD_T + (1 - (v - min) / (max - min)) * (SVG_H - PAD_T - PAD_BOT);
+  };
+
+  // Line path with gaps at null values
+  const buildPath = (serie, range) => {
+    let d = '';
+    let pen = false;
+    serie.forEach((v, i) => {
+      if (v === null) { pen = false; return; }
+      const x = xOf(i).toFixed(1);
+      const y = toY(v, range).toFixed(1);
+      d += pen ? ` L ${x} ${y}` : `M ${x} ${y}`;
+      pen = true;
+    });
+    return d;
+  };
+
+  // Closed area paths for gradient fill — one closed shape per continuous segment
+  const buildAreaPath = (serie, range) => {
+    const baseline = SVG_H - PAD_BOT;
+    const segments = [];
+    let seg = [];
+    serie.forEach((v, i) => {
+      if (v === null) { if (seg.length) { segments.push(seg); seg = []; } return; }
+      seg.push({ x: xOf(i), y: toY(v, range) });
+    });
+    if (seg.length) segments.push(seg);
+    return segments.map(pts => {
+      let d = `M ${pts[0].x.toFixed(1)} ${baseline.toFixed(1)}`;
+      pts.forEach(p => { d += ` L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`; });
+      d += ` L ${pts[pts.length - 1].x.toFixed(1)} ${baseline.toFixed(1)} Z`;
+      return d;
+    }).join(' ');
+  };
+
+  const showTooltip = (e, i, campo) => {
+    setTooltip({
+      x: e.clientX,
+      y: e.clientY,
+      label: labels[i] || '—',
+      campo,
+      temp:   tempSerie[i],
+      ph:     phSerie[i],
+      amonia: amoniaSerie[i],
+    });
+  };
+
+  const moveTooltip = (e) =>
+    setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null);
 
   if (loading) {
     return (
@@ -209,7 +307,9 @@ export default function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>Tendência Semanal</div>
-              <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 2 }}>Últimos 7 dias — escala normalizada por parâmetro</div>
+              <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 2 }}>
+                Médias diárias dos últimos 7 dias
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 14, fontSize: '0.72rem', fontWeight: 600 }}>
               <span style={{ color: '#f97316' }}>▬ Temp.</span>
@@ -218,36 +318,136 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <svg width="100%" viewBox={`0 0 ${SVG_W} ${SVG_H}`} style={{ overflow: 'visible', display: 'block' }}>
-            {/* Linhas guia horizontais */}
-            {[0.25, 0.5, 0.75].map(f => {
-              const y = PAD_T + f * (SVG_H - PAD_T - PAD_BOT);
-              return <line key={f} x1={PAD_L} y1={y} x2={SVG_W - PAD_R} y2={y} stroke="#f1f5f9" strokeWidth="1" />;
-            })}
+          {temDadosSemanais ? (
+            <svg width="100%" viewBox={`0 0 ${SVG_W} ${SVG_H}`} style={{ overflow: 'visible', display: 'block' }}>
+              <defs>
+                <linearGradient id="gradTemp" x1="0" y1={PAD_T} x2="0" y2={SVG_H - PAD_BOT} gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#f97316" stopOpacity="0.15" />
+                  <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="gradPh" x1="0" y1={PAD_T} x2="0" y2={SVG_H - PAD_BOT} gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="gradAmonia" x1="0" y1={PAD_T} x2="0" y2={SVG_H - PAD_BOT} gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#a855f7" stopOpacity="0.15" />
+                  <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+                </linearGradient>
+              </defs>
 
-            {/* Linha base */}
-            <line x1={PAD_L} y1={SVG_H - PAD_BOT} x2={SVG_W - PAD_R} y2={SVG_H - PAD_BOT} stroke="#e2e8f0" strokeWidth="1" />
+              {/* Linhas guia horizontais */}
+              {[0.25, 0.5, 0.75, 1].map(f => {
+                const y = f === 1 ? SVG_H - PAD_BOT : PAD_T + f * (SVG_H - PAD_T - PAD_BOT);
+                return (
+                  <line key={f} x1={PAD_L} y1={y} x2={SVG_W - PAD_R} y2={y}
+                    stroke={f === 1 ? '#cbd5e1' : '#f1f5f9'} strokeWidth={f === 1 ? 1.5 : 1} />
+                );
+              })}
 
-            {/* Temperatura */}
-            <polyline fill="none" stroke="#f97316" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={pts(tempY)} />
-            {tempY.map((y, i) => <circle key={i} cx={xOf(i)} cy={y} r="3" fill="#f97316" />)}
+              {/* Áreas preenchidas (atrás das linhas) */}
+              <path d={buildAreaPath(tempSerie, tempRange)} fill="url(#gradTemp)" />
+              <path d={buildAreaPath(phSerie, phRange)} fill="url(#gradPh)" />
+              <path d={buildAreaPath(amoniaSerie, amoniaRange)} fill="url(#gradAmonia)" />
 
-            {/* pH */}
-            <polyline fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={pts(phY)} />
-            {phY.map((y, i) => <circle key={i} cx={xOf(i)} cy={y} r="3" fill="#3b82f6" />)}
+              {/* Linhas */}
+              <path d={buildPath(tempSerie, tempRange)} fill="none" stroke="#f97316" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              <path d={buildPath(phSerie, phRange)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              <path d={buildPath(amoniaSerie, amoniaRange)} fill="none" stroke="#a855f7" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
 
-            {/* Amônia */}
-            <polyline fill="none" stroke="#a855f7" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={pts(amoniaY)} />
-            {amoniaY.map((y, i) => <circle key={i} cx={xOf(i)} cy={y} r="3" fill="#a855f7" />)}
+              {/* Pontos interativos */}
+              {tempSerie.map((v, i) => v !== null && (
+                <circle key={i} cx={xOf(i)} cy={toY(v, tempRange)} r="3.5" fill="#fff" stroke="#f97316" strokeWidth="2"
+                  style={{ cursor: 'crosshair' }}
+                  onMouseEnter={(e) => showTooltip(e, i, 'temperatura')}
+                  onMouseMove={moveTooltip}
+                  onMouseLeave={() => setTooltip(null)}
+                />
+              ))}
+              {phSerie.map((v, i) => v !== null && (
+                <circle key={i} cx={xOf(i)} cy={toY(v, phRange)} r="3.5" fill="#fff" stroke="#3b82f6" strokeWidth="2"
+                  style={{ cursor: 'crosshair' }}
+                  onMouseEnter={(e) => showTooltip(e, i, 'ph')}
+                  onMouseMove={moveTooltip}
+                  onMouseLeave={() => setTooltip(null)}
+                />
+              ))}
+              {amoniaSerie.map((v, i) => v !== null && (
+                <circle key={i} cx={xOf(i)} cy={toY(v, amoniaRange)} r="3.5" fill="#fff" stroke="#a855f7" strokeWidth="2"
+                  style={{ cursor: 'crosshair' }}
+                  onMouseEnter={(e) => showTooltip(e, i, 'amonia')}
+                  onMouseMove={moveTooltip}
+                  onMouseLeave={() => setTooltip(null)}
+                />
+              ))}
 
-            {/* Labels do eixo X */}
-            {DIAS.map((d, i) => (
-              <text key={d} x={xOf(i)} y={SVG_H - 5} fontSize="10" textAnchor="middle" fill="#94a3b8" fontFamily="Poppins, sans-serif">{d}</text>
-            ))}
-          </svg>
+              {/* Labels do eixo X — datas reais DD/MM */}
+              {labels.map((label, i) => (
+                <text key={i} x={xOf(i)} y={SVG_H - 8} fontSize="8" textAnchor="middle" fill="#94a3b8" fontFamily="Poppins, sans-serif">
+                  {label}
+                </text>
+              ))}
+            </svg>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8' }}>
+              <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>📊</div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>Nenhuma leitura registrada nos últimos 7 dias</div>
+              <div style={{ fontSize: '0.75rem', marginTop: 4 }}>Os dados aparecem assim que o sensor enviar leituras</div>
+            </div>
+          )}
         </div>
 
       </div>
+
+      {/* Tooltip flutuante */}
+      {tooltip && (() => {
+        const TOOLTIP_W = 170;
+        const left = tooltip.x + TOOLTIP_W + 14 > (typeof window !== 'undefined' ? window.innerWidth : 9999)
+          ? tooltip.x - TOOLTIP_W - 6
+          : tooltip.x + 14;
+        const params = [
+          { key: 'temperatura', icon: '🌡️', label: 'Temp.',  value: tooltip.temp,   dec: 1, unit: ' °C',   color: '#fb923c' },
+          { key: 'ph',          icon: '🧪', label: 'pH',     value: tooltip.ph,     dec: 2, unit: '',       color: '#60a5fa' },
+          { key: 'amonia',      icon: '⚗️', label: 'NH₃',   value: tooltip.amonia, dec: 3, unit: ' mg/L',  color: '#c084fc' },
+        ];
+        return (
+          <div style={{
+            position: 'fixed', left, top: tooltip.y - 90,
+            background: '#1e293b', color: '#fff', borderRadius: 10,
+            padding: '10px 14px', pointerEvents: 'none', zIndex: 9999,
+            whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
+            minWidth: TOOLTIP_W,
+          }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#94a3b8', marginBottom: 8, letterSpacing: '0.04em' }}>
+              {tooltip.label}
+            </div>
+            {params.map(p => {
+              const active = p.key === tooltip.campo;
+              const display = p.value !== null
+                ? `${p.value.toFixed(p.dec)}${p.unit}`
+                : 'sem dados';
+              return (
+                <div key={p.key} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: active ? '5px 8px' : '2px 8px',
+                  borderRadius: 6,
+                  background: active ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  marginBottom: 2,
+                  opacity: active ? 1 : 0.4,
+                  transition: 'opacity 0.1s',
+                }}>
+                  <span style={{ fontSize: active ? '0.95rem' : '0.8rem' }}>{p.icon}</span>
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', minWidth: 32 }}>{p.label}</span>
+                  <span style={{
+                    fontWeight: active ? 700 : 400,
+                    fontSize: active ? '0.92rem' : '0.78rem',
+                    color: active ? p.color : '#cbd5e1',
+                  }}>{display}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Modal de Relatório */}
       <Modal isOpen={showRelatorio} onClose={() => setShowRelatorio(false)} title="Relatório Individual" showCloseButton>
