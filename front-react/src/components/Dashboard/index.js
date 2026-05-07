@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [nomeCativeiro, setNomeCativeiro] = useState('');
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
+  const [sseKey, setSseKey]               = useState(0);
   const [showRelatorio, setShowRelatorio] = useState(false);
   const [tooltip, setTooltip]             = useState(null);
 
@@ -68,6 +69,7 @@ export default function Dashboard() {
       setDadosAtuais(data.dadosAtuais);
       setDadosSemanais(data.dadosSemanais || []);
       setNomeCativeiro(data.cativeiro?.nome || '');
+      setError(null);
     } catch (err) {
       setError(err.response?.status === 401
         ? 'Sessão expirada. Faça login novamente.'
@@ -75,7 +77,14 @@ export default function Dashboard() {
     }
   };
 
-  // Conexão SSE — dados chegam automaticamente a cada nova leitura do sensor
+  // Reestabelece a conexão SSE incrementando a chave do efeito
+  const reconectar = () => {
+    setError(null);
+    setSseKey(k => k + 1);
+  };
+
+  // Conexão SSE — dados chegam automaticamente a cada nova leitura do sensor.
+  // sseKey é incrementado por reconectar(), forçando o efeito a recriar a conexão.
   useEffect(() => {
     if (!id) return;
     const token = getToken();
@@ -94,13 +103,14 @@ export default function Dashboard() {
     };
 
     es.onerror = () => {
-      setError('Conexão em tempo real perdida. Use o botão Atualizar.');
+      setError('Conexão em tempo real perdida. Os dados exibidos podem estar desatualizados.');
       setLoading(false);
       es.close();
     };
 
     return () => es.close();
-  }, [id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, sseKey]);
 
   const fmt = (v, dec, unit) => {
     if (v === '#' || v === null || v === undefined) return '—';
@@ -198,7 +208,10 @@ export default function Dashboard() {
   const moveTooltip = (e) =>
     setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null);
 
-  if (loading) {
+  const temDados = dadosAtuais !== null || dadosSemanais.length > 0;
+
+  // Tela de loading: apenas na carga inicial sem dados
+  if (loading && !temDados) {
     return (
       <MemberLayout title={nomeCativeiro || 'Dashboard'} subtitle="Dados em tempo real">
         <div className={panelStyles.loadingScreen} style={{ minHeight: 'unset', padding: '60px 0' }}>
@@ -208,15 +221,27 @@ export default function Dashboard() {
     );
   }
 
-  if (error) {
+  // Tela de erro completa: apenas quando falhou e não há nenhum dado para mostrar
+  if (error && !temDados) {
     return (
       <MemberLayout title="Dashboard" subtitle="Dados em tempo real">
         <div className={panelStyles.emptyState}>
           <div className={panelStyles.emptyStateIcon}>⚠️</div>
           <p className={panelStyles.emptyStateText}>{error}</p>
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button className={`${panelStyles.btn} ${panelStyles.btnSecondary}`} onClick={() => router.push('/home')}>← Voltar</button>
-            <button className={`${panelStyles.btn} ${panelStyles.btnPrimary}`} onClick={buscar}>Tentar novamente</button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 20 }}>
+            <button
+              className={`${panelStyles.btn} ${panelStyles.btnPrimary}`}
+              style={{ minWidth: 160 }}
+              onClick={reconectar}
+            >
+              Reconectar
+            </button>
+            <button
+              onClick={() => router.push('/home')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: '#94a3b8', padding: '2px 8px' }}
+            >
+              ← Voltar para cativeiros
+            </button>
           </div>
         </div>
       </MemberLayout>
@@ -226,6 +251,34 @@ export default function Dashboard() {
   return (
     <MemberLayout title={nomeCativeiro || 'Dashboard'} subtitle="Parâmetros monitorados em tempo real">
       <div className={panelStyles.section}>
+
+        {/* Banner de erro inline — aparece quando SSE cai mas já há dados visíveis */}
+        {error && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            background: '#fef9ec', border: '1px solid #fbbf24', borderRadius: 10,
+            padding: '10px 14px', marginBottom: 16,
+          }}>
+            <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
+            <span style={{ flex: 1, fontSize: '0.8rem', color: '#92400e', fontWeight: 500, minWidth: 0 }}>
+              {error}
+            </span>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <button
+                className={`${panelStyles.btn} ${panelStyles.btnPrimary} ${panelStyles.btnSm}`}
+                onClick={reconectar}
+              >
+                Reconectar
+              </button>
+              <button
+                className={`${panelStyles.btn} ${panelStyles.btnSecondary} ${panelStyles.btnSm}`}
+                onClick={buscar}
+              >
+                Atualizar dados
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Cabeçalho da seção */}
         <div className={panelStyles.sectionHeader} style={{ marginBottom: 20 }}>
