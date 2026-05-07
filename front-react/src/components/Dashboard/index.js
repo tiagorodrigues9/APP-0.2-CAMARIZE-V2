@@ -50,6 +50,8 @@ export default function Dashboard() {
   const [tooltip, setTooltip]             = useState(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+  // SSE conecta direto na API (sem passar pelo proxy do Next.js que buferiza streaming).
+  const sseUrl = process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:4000';
   const getToken = () => typeof window !== 'undefined'
     ? (sessionStorage.getItem('token') || localStorage.getItem('token'))
     : null;
@@ -80,7 +82,7 @@ export default function Dashboard() {
     if (!token) { setError('Token não encontrado. Faça login novamente.'); setLoading(false); return; }
 
     setLoading(true);
-    const es = new EventSource(`${apiUrl}/parametros/stream/${id}?token=${encodeURIComponent(token)}`);
+    const es = new EventSource(`${sseUrl}/parametros/stream/${id}?token=${encodeURIComponent(token)}`);
 
     es.onmessage = (e) => {
       const data = JSON.parse(e.data);

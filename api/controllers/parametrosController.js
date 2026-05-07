@@ -249,20 +249,42 @@ const streamDashboard = async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
+  res.write(': stream-start\n\n');
+
+  console.log(`[SSE] stream aberto para cativeiroId=${cativeiroId}`);
 
   const push = async () => {
     try {
       const dados = await fetchDashboardData(cativeiroId);
-      if (dados) res.write(`data: ${JSON.stringify(dados)}\n\n`);
-    } catch { /* conexão já fechada */ }
+      if (dados) {
+        res.write(`data: ${JSON.stringify(dados)}\n\n`);
+        console.log(`[SSE] dados enviados para cativeiroId=${cativeiroId}`);
+      } else {
+        console.error(`[SSE] fetchDashboardData retornou null para cativeiroId=${cativeiroId}`);
+        res.end();
+      }
+    } catch (err) {
+      console.error(`[SSE] erro em push() para cativeiroId=${cativeiroId}:`, err.message);
+      try { res.end(); } catch {}
+    }
   };
 
   await push();
 
   const eventKey = `parametro:${cativeiroId}`;
   parametrosEmitter.on(eventKey, push);
-  req.on('close', () => parametrosEmitter.off(eventKey, push));
+
+  const keepalive = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch { clearInterval(keepalive); }
+  }, 15_000);
+
+  req.on('close', () => {
+    parametrosEmitter.off(eventKey, push);
+    clearInterval(keepalive);
+    console.log(`[SSE] stream fechado para cativeiroId=${cativeiroId}`);
+  });
 };
 
 export {
