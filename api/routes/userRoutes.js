@@ -257,7 +257,7 @@ userRoutes.post("/check-email", userController.checkEmailExists);
  *       401:
  *         description: Não autorizado
  */
-userRoutes.get("/me", Auth.Authorization, userController.getCurrentUser);
+userRoutes.get("/me", Auth.Authorization, Cache.noStore, userController.getCurrentUser);
 
 /**
  * @swagger

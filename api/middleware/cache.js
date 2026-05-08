@@ -1,3 +1,8 @@
+const noStore = (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+};
+
 const cacheControl = (maxAge, swrMaxAge = 0) => (req, res, next) => {
   const directive = swrMaxAge > 0
     ? `private, max-age=${maxAge}, stale-while-revalidate=${swrMaxAge}`
@@ -7,4 +12,4 @@ const cacheControl = (maxAge, swrMaxAge = 0) => (req, res, next) => {
   next();
 };
 
-export default { cacheControl };
+export default { cacheControl, noStore };
