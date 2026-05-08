@@ -1,7 +1,26 @@
 import HomeContent from "@/components/HomeContent";
-import { useEffect } from "react";
+import MemberLayout from "@/components/MemberLayout";
+import { useEffect, useRef } from "react";
 
 export default function HomePage() {
+  const refHome = useRef(null);
+  const refStatus = useRef(null);
+  const refSensores = useRef(null);
+  const refRequests = useRef(null);
+  const refNotifications = useRef(null);
+  const refSettings = useRef(null);
+  const refProfile = useRef(null);
+
+  const navItemRefs = {
+    '/home': refHome,
+    '/status-cativeiros': refStatus,
+    '/sensores': refSensores,
+    '/requests': refRequests,
+    '/notifications': refNotifications,
+    '/settings': refSettings,
+    '/profile': refProfile,
+  };
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem('usuarioCamarize');
@@ -11,5 +30,10 @@ export default function HomePage() {
       else if (role === 'admin') window.location.replace('/admin');
     } catch {}
   }, []);
-  return <HomeContent />;
+
+  return (
+    <MemberLayout title="Meus Cativeiros" subtitle="Monitore e gerencie seus cativeiros" navItemRefs={navItemRefs}>
+      <HomeContent sidebarRefs={navItemRefs} />
+    </MemberLayout>
+  );
 }

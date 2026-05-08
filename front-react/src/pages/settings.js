@@ -1,8 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import axios from "axios";
-import profileStyles from "../components/ProfileContent/ProfileContent.module.css";
-import NavBottom from "../components/NavBottom";
+import MemberLayout from "../components/MemberLayout";
 import Notification from "../components/Notification";
 import AuthError from "../components/AuthError";
 import Loading from "../components/Loading";
@@ -194,23 +193,33 @@ export default function Settings() {
   };
 
   if (loading) {
-    return <Loading message="Carregando configurações..." />;
+    return (
+      <MemberLayout title="Configurações" subtitle="Gerencie a fazenda e preferências do sistema">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px', color: '#94a3b8', fontSize: '0.9rem' }}>
+          Carregando configurações...
+        </div>
+      </MemberLayout>
+    );
   }
-  
-  if (!usuario) {
-    return <AuthError error="Faça login para ver as informações do seu sítio." />;
-  }
-  
-  if (!fazenda) {
-    return <AuthError error="Nenhuma fazenda encontrada. Verifique suas permissões de acesso." onRetry={() => window.location.reload()} />;
+
+  if (!usuario || !fazenda) {
+    return (
+      <MemberLayout title="Configurações" subtitle="Gerencie a fazenda e preferências do sistema">
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '48px 32px', textAlign: 'center', maxWidth: 480, margin: '0 auto' }}>
+          <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.35 }}>🏡</div>
+          <h3 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600, color: '#1e293b' }}>Nenhuma fazenda encontrada</h3>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', lineHeight: 1.6 }}>
+            Este usuário ainda não está associado a nenhuma fazenda. Aguarde o administrador adicionar você a uma fazenda para acessar as configurações.
+          </p>
+        </div>
+      </MemberLayout>
+    );
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingBottom: 80, paddingLeft: '20px', paddingRight: '20px' }}>
-      <button className={profileStyles.backBtn} onClick={() => window.history.back()}>
-        <span style={{ fontSize: 24, lineHeight: 1 }}>&larr;</span>
-      </button>
-      <div style={{ position: 'relative', marginBottom: 10, marginTop: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+    <MemberLayout title="Configurações" subtitle="Gerencie a fazenda e preferências do sistema">
+      <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ position: 'relative', marginBottom: 10, marginTop: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <img
           src={fotoFazenda}
           alt="Foto da fazenda"
@@ -421,7 +430,7 @@ export default function Settings() {
         type={notification.type}
         onClose={hideNotification}
       />
-      <NavBottom />
-    </div>
+      </div>
+    </MemberLayout>
   );
 } 

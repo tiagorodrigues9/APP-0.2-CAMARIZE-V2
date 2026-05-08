@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
+import MemberLayout from '@/components/MemberLayout';
 
 export default function MyRequests() {
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -10,10 +11,6 @@ export default function MyRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dateFilter, setDateFilter] = useState('');
-  const [swipeStartX, setSwipeStartX] = useState(null);
-  const [swipeCurrentX, setSwipeCurrentX] = useState(null);
-  const [swipedItemId, setSwipedItemId] = useState(null);
-  const [openItemId, setOpenItemId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
 
@@ -66,46 +63,13 @@ export default function MyRequests() {
     cadastrar_sensor: 'Cadastrar sensor',
     excluir_sensor: 'Excluir sensor',
     editar_cativeiro_add_sensor: 'Adicionar sensor ao cativeiro',
-    editar_cativeiro_remove_sensor: 'Remover sensor do cativeiro'
+    editar_cativeiro_remove_sensor: 'Remover sensor do cativeiro',
+    editar_dieta: 'Gerenciar dieta de cativeiro'
   })[action] || action;
 
   const getTipoCamaraoNome = (id) => {
     const t = tiposCamarao.find(x => String(x._id) === String(id));
     return t ? t.nome : id;
-  };
-
-  const handleTouchStart = (id, e) => {
-    if (e.touches && e.touches.length > 0) {
-      setSwipeStartX(e.touches[0].clientX);
-      setSwipeCurrentX(e.touches[0].clientX);
-      setSwipedItemId(id);
-    }
-  };
-
-  const handleTouchMove = (e) => {
-    if (swipeStartX === null) return;
-    if (e.touches && e.touches.length > 0) {
-      setSwipeCurrentX(e.touches[0].clientX);
-    }
-  };
-
-  const handleTouchEnd = (id) => {
-    if (swipeStartX === null || swipeCurrentX === null) {
-      setSwipedItemId(null);
-      setSwipeStartX(null);
-      setSwipeCurrentX(null);
-      return;
-    }
-    const deltaX = swipeCurrentX - swipeStartX; // negativo se arrastar para esquerda
-    const threshold = -60;
-    if (deltaX < threshold) {
-      setOpenItemId(id);
-    } else {
-      setOpenItemId(null);
-    }
-    setSwipedItemId(null);
-    setSwipeStartX(null);
-    setSwipeCurrentX(null);
   };
 
   const handleDelete = (id) => {
@@ -120,7 +84,6 @@ export default function MyRequests() {
       const headers = { Authorization: `Bearer ${token}` };
       await axios.delete(`${apiUrl}/requests/${itemToDelete}`, { headers });
       setItems(prev => prev.filter(x => String(x._id) !== String(itemToDelete)));
-      setOpenItemId(null);
     } catch (e) {
       alert('Falha ao excluir. Tente novamente.');
     } finally {
@@ -129,21 +92,14 @@ export default function MyRequests() {
     }
   };
 
-  const getTranslateXForItem = (id) => {
-    if (id === swipedItemId && swipeStartX !== null && swipeCurrentX !== null) {
-      const deltaX = Math.max(-100, Math.min(0, swipeCurrentX - swipeStartX));
-      return deltaX;
-    }
-    if (id === openItemId) return -88; // aberto via botão de opções
-    return 0;
-  };
-
   const renderPayloadPretty = (item) => {
     const { action, payload = {} } = item;
     if (action === 'editar_cativeiro') {
       const fields = [];
+      if (payload.cativeiroNome) fields.push({ label: 'Cativeiro', value: payload.cativeiroNome });
       if (typeof payload.nome !== 'undefined') fields.push({ label: 'Nome do cativeiro', value: payload.nome });
       if (typeof payload.id_tipo_camarao !== 'undefined') fields.push({ label: 'Tipo de camarão', value: getTipoCamaraoNome(payload.id_tipo_camarao) });
+      if (typeof payload.data_instalacao !== 'undefined') fields.push({ label: 'Data de instalação', value: payload.data_instalacao ? new Date(payload.data_instalacao).toLocaleDateString('pt-BR') : 'N/A' });
       if (typeof payload.temp_media_diaria !== 'undefined') fields.push({ label: 'Temperatura ideal (°C)', value: payload.temp_media_diaria });
       if (typeof payload.ph_medio_diario !== 'undefined') fields.push({ label: 'pH ideal', value: payload.ph_medio_diario });
       if (typeof payload.amonia_media_diaria !== 'undefined') fields.push({ label: 'Amônia ideal (mg/L)', value: payload.amonia_media_diaria });
@@ -157,8 +113,26 @@ export default function MyRequests() {
       );
     }
 
+    if (action === 'editar_dieta') {
+      const horarios = Array.isArray(payload?.horarios) ? payload.horarios.filter(h => h) : [];
+      const fields = [];
+      if (payload.cativeiroNome) fields.push({ label: 'Cativeiro', value: payload.cativeiroNome });
+      if (payload.descricao) fields.push({ label: 'Descrição', value: payload.descricao });
+      if (typeof payload.quantidade !== 'undefined') fields.push({ label: 'Quantidade', value: `${payload.quantidade}g por refeição` });
+      if (typeof payload.quantidadeRefeicoes !== 'undefined') fields.push({ label: 'Refeições/dia', value: payload.quantidadeRefeicoes });
+      if (horarios.length > 0) fields.push({ label: 'Horários', value: horarios.join(', ') });
+      if (fields.length === 0) return null;
+      return (
+        <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+          {fields.map((f, i) => (
+            <li key={i}><strong>{f.label}:</strong> {String(f.value)}</li>
+          ))}
+        </ul>
+      );
+    }
+
     // Fallback genérico: lista chaves legíveis e esconde ids técnicos
-    const hiddenKeys = new Set(['_id', 'id', 'cativeiroId', 'sensorId', 'fazendaId', 'fazenda']);
+    const hiddenKeys = new Set(['_id', 'id', 'cativeiroId', 'cativeiroNome', 'sensorId', 'fazendaId', 'fazenda', 'dietaId']);
     const entries = Object.entries(payload).filter(([k]) => !hiddenKeys.has(k));
     if (entries.length === 0) return null;
     return (
@@ -170,41 +144,28 @@ export default function MyRequests() {
     );
   };
 
-  if (authLoading || loading) return <div style={{ padding: 20 }}>Carregando...</div>;
-  if (!isAuthenticated) return <div style={{ padding: 20, color: 'red' }}>Sessão expirada. Faça login novamente.</div>;
-  if (error) return <div style={{ padding: 20, color: 'red' }}>{error}</div>;
+  if (authLoading || loading) {
+    return (
+      <MemberLayout title="Minhas Solicitações" subtitle="Histórico e status das suas solicitações">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px', color: '#94a3b8', fontSize: '0.9rem' }}>
+          Carregando solicitações...
+        </div>
+      </MemberLayout>
+    );
+  }
+  if (!isAuthenticated) return (
+    <MemberLayout title="Minhas Solicitações">
+      <div style={{ padding: 20, color: '#ef4444' }}>Sessão expirada. Faça login novamente.</div>
+    </MemberLayout>
+  );
+  if (error) return (
+    <MemberLayout title="Minhas Solicitações">
+      <div style={{ padding: 20, color: '#ef4444' }}>{error}</div>
+    </MemberLayout>
+  );
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ position: 'relative', marginBottom: 16 }}>
-        <button 
-          style={{ 
-            position: 'absolute',
-            left: 0,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'none', 
-            border: 'none', 
-            fontSize: 24, 
-            cursor: 'pointer',
-            padding: '8px',
-            borderRadius: '4px',
-            transition: 'background-color 0.2s',
-            zIndex: 1
-          }} 
-          onClick={() => window.history.back()}
-          onMouseOver={(e) => {
-            e.target.style.backgroundColor = 'rgba(0,0,0,0.05)';
-          }}
-          onMouseOut={(e) => {
-            e.target.style.backgroundColor = 'transparent';
-          }}
-          title="Voltar"
-        >
-          &larr;
-        </button>
-        <h2 style={{ textAlign: 'center', margin: 0, fontWeight: 600, fontSize: '1.35rem', padding: '8px 0' }}>Minhas Solicitações</h2>
-      </div>
+    <MemberLayout title="Minhas Solicitações" subtitle="Histórico e status das suas solicitações">
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, padding: 12, background: '#f9fafb', borderRadius: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -240,63 +201,27 @@ export default function MyRequests() {
         <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Você ainda não enviou solicitações.</div>
       )}
 
-      {filtered.map(item => {
-        const translateX = getTranslateXForItem(item._id);
-        return (
-          <div key={item._id} style={{ position: 'relative', marginBottom: 12 }}>
-            <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'stretch', gap: 8, paddingRight: 8 }}>
-              <button
-                onClick={() => handleDelete(item._id)}
-                style={{
-                  background: '#ef4444', color: '#fff', border: 'none', borderRadius: 10, padding: '0 16px',
-                  minWidth: 80, cursor: 'pointer'
-                }}
-                title="Excluir"
-              >
-                Excluir
-              </button>
+      {filtered.map(item => (
+        <div key={item._id} style={{ border: '1px solid #e5e7eb', padding: 14, borderRadius: 10, background: '#fff', marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {actionLabel(item.action)}
             </div>
-            <div
-              onClick={() => setOpenItemId(null)}
-              style={{
-                border: '1px solid #e5e7eb', padding: 14, borderRadius: 10, background: '#fff',
-                transform: `translateX(${translateX}px)`, transition: swipedItemId ? 'none' : 'transform 0.2s ease'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                  <img src="/images/history.svg" alt="Histórico" width="18" height="18" />
-                  <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{actionLabel(item.action)}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setOpenItemId(openItemId === item._id ? null : item._id); }}
-                    title="Opções"
-                    style={{
-                      border: '1px solid #e5e7eb', background: '#f9fafb', color: '#374151',
-                      borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontWeight: 600
-                    }}
-                  >
-                    ⋯
-                  </button>
-                  <span style={statusChipStyle(item.status)}>
-                    {item.status === 'aprovado' ? 'Aprovado' : item.status === 'recusado' ? 'Recusado' : 'Pendente'}
-                  </span>
-                </div>
-              </div>
-              <div style={{ marginTop: 6, fontSize: 13, color: '#6b7280' }}>
-                {new Date(item.createdAt).toLocaleString('pt-BR')}
-              </div>
-              {item.payload && Object.keys(item.payload).length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Alterações solicitadas:</div>
-                  {renderPayloadPretty(item)}
-                </div>
-              )}
-            </div>
+            <span style={statusChipStyle(item.status)}>
+              {item.status === 'aprovado' ? 'Aprovado' : item.status === 'recusado' ? 'Recusado' : 'Pendente'}
+            </span>
           </div>
-        );
-      })}
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: item.payload && Object.keys(item.payload).length > 0 ? 8 : 0 }}>
+            {new Date(item.createdAt).toLocaleString('pt-BR')}
+          </div>
+          {item.payload && Object.keys(item.payload).length > 0 && (
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Alterações solicitadas:</div>
+              {renderPayloadPretty(item)}
+            </div>
+          )}
+        </div>
+      ))}
 
       <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setItemToDelete(null); }} title="Excluir solicitação">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -317,7 +242,7 @@ export default function MyRequests() {
           </div>
         </div>
       </Modal>
-    </div>
+    </MemberLayout>
   );
 }
 

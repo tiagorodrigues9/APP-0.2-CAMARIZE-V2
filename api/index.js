@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "./swagger/swaggerConfig.js";
 
 // Carrega as variáveis de ambiente
 dotenv.config();
@@ -32,39 +34,16 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
-  // Permitir domínios ngrok
-  /^https:\/\/.*\.ngrok-free\.app$/,
-  /^https:\/\/.*\.ngrok\.io$/,
-  // Permitir qualquer origem durante desenvolvimento
+
   "*"
 ];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Permitir requests sem origin (como mobile apps)
-    if (!origin) return callback(null, true);
-    
-    // Verificar se a origin está na lista permitida
-    const isAllowed = allowedOrigins.some(allowedOrigin => {
-      if (typeof allowedOrigin === 'string') {
-        return origin === allowedOrigin;
-      } else if (allowedOrigin instanceof RegExp) {
-        return allowedOrigin.test(origin);
-      }
-      return false;
-    });
-    
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      console.log('🚫 Origin bloqueada:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+  origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Cache-Control"]
 }));
+
 
 
 // 🧠 Esses dois devem vir ANTES das rotas
@@ -94,6 +73,18 @@ app.get('/api/health', (req, res) => {
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString()
   });
+});
+
+// ✅ Documentação Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Camarize API Docs',
+  explorer: true,
+}));
+
+// Endpoint para baixar o spec em JSON (útil para importar no Postman/Insomnia)
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
 });
 
 // ✅ Registra as rotas

@@ -1,566 +1,372 @@
 import { useEffect, useState } from 'react';
-import SensorList from '../components/SensorList';
 import axios from 'axios';
-import { useRouter } from 'next/router';
+import MemberLayout from '../components/MemberLayout';
 import Notification from '../components/Notification';
-import AuthError from '../components/AuthError';
-import Loading from '../components/Loading';
-import NavBottom from '../components/NavBottom';
-import styles from './sensores.module.css';
-import RequestButton from '../components/RequestButton';
+import styles from '../styles/panel.module.css';
+
+const SENSOR_CFG = {
+  temperatura: { label: 'Temperatura', icon: '🌡️', bg: '#fff7ed', stripe: '#f97316', badgeBg: '#ffedd5', badgeColor: '#c2410c' },
+  ph:          { label: 'pH',          icon: '🧪', bg: '#eff6ff', stripe: '#3b82f6', badgeBg: '#dbeafe', badgeColor: '#1d4ed8' },
+  amonia:      { label: 'Amônia',      icon: '⚗️', bg: '#fdf4ff', stripe: '#a855f7', badgeBg: '#f3e8ff', badgeColor: '#7e22ce' },
+};
+
+const DEFAULT_CFG = { label: 'Sensor', icon: '📡', bg: '#f8fafc', stripe: '#94a3b8', badgeBg: '#f1f5f9', badgeColor: '#475569' };
+
+function normalizeTipo(raw) {
+  const s = String(raw || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (s.includes('temp')) return 'temperatura';
+  if (s.includes('ph') || s.includes('acide')) return 'ph';
+  if (s.includes('amon') || s.includes('nh3')) return 'amonia';
+  return null;
+}
+
+const FILTROS_TIPO = [
+  { key: '', label: 'Todos' },
+  { key: 'temperatura', label: 'Temperatura' },
+  { key: 'ph', label: 'pH' },
+  { key: 'amonia', label: 'Amônia' },
+];
 
 export default function SensoresPage() {
   const [sensores, setSensores] = useState([]);
-  const [sensoresFiltrados, setSensoresFiltrados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [sensorToDelete, setSensorToDelete] = useState(null);
-  const [notification, setNotification] = useState({ show: false, message: '', type: 'success', actionLabel: null, onAction: null });
-  const [pendingDeletion, setPendingDeletion] = useState({});
-  const [filtroAtivo, setFiltroAtivo] = useState('');
-  const [showFiltroModal, setShowFiltroModal] = useState(false);
-  const [ordenacaoAtiva, setOrdenacaoAtiva] = useState(false);
-  const router = useRouter();
-  const usuarioRaw = typeof window !== 'undefined' ? (sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize')) : null;
-  const role = usuarioRaw ? (JSON.parse(usuarioRaw)?.role || 'membro') : 'membro';
-
-  const showNotification = (message, type = 'success', actionLabel = null, onAction = null) => {
-    setNotification({ show: true, message, type, actionLabel, onAction });
-  };
-
-  const hideNotification = () => {
-    setNotification({ show: false, message: '', type: 'success' });
-  };
-
-  // Função para extrair o número do código do sensor
-  const extrairNumeroCodigo = (codigo) => {
-    const match = codigo.match(/#(\d+)/);
-    return match ? parseInt(match[1], 10) : 0;
-  };
-
-  // Função de merge sort para ordenar sensores por código decrescente
-  const mergeSort = (array) => {
-    if (array.length <= 1) {
-      return array;
-    }
-
-    const meio = Math.floor(array.length / 2);
-    const esquerda = mergeSort(array.slice(0, meio));
-    const direita = mergeSort(array.slice(meio));
-
-    return merge(esquerda, direita);
-  };
-
-  const merge = (esquerda, direita) => {
-    const resultado = [];
-    let i = 0;
-    let j = 0;
-
-    while (i < esquerda.length && j < direita.length) {
-      // Usar o índice original na lista completa para determinar o código
-      const indexEsquerda = sensores.findIndex(s => s._id === esquerda[i]._id);
-      const indexDireita = sensores.findIndex(s => s._id === direita[j]._id);
-      
-      const numEsquerda = indexEsquerda + 1; // +1 porque os códigos começam em #001
-      const numDireita = indexDireita + 1;
-      
-      // Ordenação decrescente (maior para menor)
-      if (numEsquerda >= numDireita) {
-        resultado.push(esquerda[i]);
-        i++;
-      } else {
-        resultado.push(direita[j]);
-        j++;
-      }
-    }
-
-    // Adicionar elementos restantes
-    while (i < esquerda.length) {
-      resultado.push(esquerda[i]);
-      i++;
-    }
-    while (j < direita.length) {
-      resultado.push(direita[j]);
-      j++;
-    }
-
-    return resultado;
-  };
-
-  const handleOrdenar = () => {
-    if (ordenacaoAtiva) {
-      // Se já está ordenado, voltar à ordem original
-      const sensoresOriginais = sensores.filter(sensor => 
-        filtroAtivo === '' || 
-        sensor.id_tipo_sensor?.toLowerCase().includes(filtroAtivo.toLowerCase()) ||
-        sensor.apelido?.toLowerCase().includes(filtroAtivo.toLowerCase())
-      );
-      setSensoresFiltrados(sensoresOriginais);
-      setOrdenacaoAtiva(false);
-    } else {
-      // Aplicar merge sort
-      const ordenados = mergeSort([...sensoresFiltrados]);
-      setSensoresFiltrados(ordenados);
-      setOrdenacaoAtiva(true);
-    }
-  };
-
-  // Aplicar filtro quando sensores ou filtroAtivo mudarem
-  useEffect(() => {
-    if (filtroAtivo === '') {
-      setSensoresFiltrados(sensores);
-    } else {
-      const filtrados = sensores.filter(sensor => 
-        sensor.id_tipo_sensor?.toLowerCase().includes(filtroAtivo.toLowerCase()) ||
-        sensor.apelido?.toLowerCase().includes(filtroAtivo.toLowerCase())
-      );
-      setSensoresFiltrados(filtrados);
-    }
-    // Resetar ordenação quando filtro mudar
-    setOrdenacaoAtiva(false);
-  }, [sensores, filtroAtivo]);
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const [busca, setBusca] = useState('');
+  const [tipoFiltro, setTipoFiltro] = useState('');
+  const [ordenado, setOrdenado] = useState(false);
 
   useEffect(() => {
-    async function fetchSensoresDoUsuario() {
+    async function fetchSensores() {
       try {
         setLoading(true);
         setError(null);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const token = typeof window !== "undefined" ? (sessionStorage.getItem('token') || localStorage.getItem("token")) : null;
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+        const token = typeof window !== 'undefined'
+          ? (sessionStorage.getItem('token') || localStorage.getItem('token'))
+          : null;
 
         if (!token) {
-          setError('Você precisa estar logado para acessar esta página');
-          setLoading(false);
+          setError('Você precisa estar logado para acessar esta página.');
           return;
         }
 
-        // 1) Buscar cativeiros do usuário
-        const cativeirosRes = await axios.get(`${apiUrl}/cativeiros`, { headers: { Authorization: `Bearer ${token}` } });
+        const cativeirosRes = await axios.get(`${apiUrl}/cativeiros`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const cativeiros = Array.isArray(cativeirosRes.data) ? cativeirosRes.data : [];
 
-        // 2) Para cada cativeiro, buscar sensores relacionados
-        const sensoresLists = await Promise.all(
+        const lists = await Promise.all(
           cativeiros.map(async (c) => {
             try {
-              const rel = await axios.get(`${apiUrl}/cativeiros/${c._id}/sensores`);
-              const list = Array.isArray(rel.data) ? rel.data : [];
-              // normalizar estrutura: alguns retornos podem vir com populate
-              return list.map(r => {
+              const res = await axios.get(`${apiUrl}/cativeiros/${c._id}/sensores`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              return (Array.isArray(res.data) ? res.data : []).map((r) => {
                 const s = r.id_sensor || r;
+                if (!s?._id) return null;
+                let tipoRaw = '';
+                if (s.id_tipo_sensor) {
+                  if (typeof s.id_tipo_sensor === 'object') tipoRaw = s.id_tipo_sensor.descricao || s.id_tipo_sensor.nome || '';
+                  else if (typeof s.id_tipo_sensor === 'string' && !/^[0-9a-fA-F]{24}$/.test(s.id_tipo_sensor)) tipoRaw = s.id_tipo_sensor;
+                }
+                if (!tipoRaw && s.apelido) tipoRaw = s.apelido;
                 return {
-                  _id: s._id || s.id || `${c._id}-${Math.random()}`,
-                  id_tipo_sensor: s.id_tipo_sensor || s.tipo || 'sensor',
+                  _id: s._id,
+                  tipoRaw,
+                  tipoKey: normalizeTipo(tipoRaw),
                   apelido: s.apelido || '',
                   cativeiroId: c._id,
-                  cativeiroNome: c.nome || c._id
+                  cativeiroNome: c.nome || '—',
                 };
-              });
+              }).filter(Boolean);
             } catch {
               return [];
             }
           })
         );
 
-        // 3) Achatar e deduplicar por _id
-        const merged = [].concat(...sensoresLists);
-        const uniqueById = Array.from(new Map(merged.map(s => [String(s._id), s])).values());
-
-        setSensores(uniqueById);
-        setSensoresFiltrados(uniqueById);
+        const merged = [].concat(...lists);
+        const unique = Array.from(new Map(merged.map(s => [String(s._id), s])).values());
+        setSensores(unique);
       } catch (err) {
-        console.error('Erro ao buscar sensores do usuário:', err);
         if (err.response?.status === 401) {
-          setError('Sessão expirada. Faça login novamente para continuar.');
+          setError('Sessão expirada. Faça login novamente.');
         } else {
           setError('Erro ao carregar os sensores. Tente novamente.');
         }
-        setSensores([]);
-        setSensoresFiltrados([]);
       } finally {
         setLoading(false);
       }
     }
-    fetchSensoresDoUsuario();
+    fetchSensores();
   }, []);
 
-  const handleEditSensor = (sensorId) => {
-    router.push(`/edit-sensor?id=${sensorId}`);
-  };
+  const filtrados = sensores.filter((s) => {
+    const cfg = SENSOR_CFG[s.tipoKey] || DEFAULT_CFG;
+    const termo = busca.toLowerCase();
+    const matchBusca = !busca ||
+      cfg.label.toLowerCase().includes(termo) ||
+      s.apelido.toLowerCase().includes(termo) ||
+      s.cativeiroNome.toLowerCase().includes(termo);
+    const matchTipo = !tipoFiltro || s.tipoKey === tipoFiltro;
+    return matchBusca && matchTipo;
+  });
 
-  const handleDeleteSensor = (sensorId) => {
-    setSensorToDelete(sensorId);
-    setShowDeleteModal(true);
-  };
+  const lista = ordenado
+    ? [...filtrados].sort((a, b) => {
+        return sensores.findIndex(s => s._id === b._id) - sensores.findIndex(s => s._id === a._id);
+      })
+    : filtrados;
 
-  const confirmDelete = async () => {
-    if (!sensorToDelete) return;
-    // Padrão "desfazer": agenda deleção, permite desfazer no toast, só executa após timeout
-    setShowDeleteModal(false);
-    const id = sensorToDelete;
-    setSensorToDelete(null);
+  const countByType = { temperatura: 0, ph: 0, amonia: 0 };
+  sensores.forEach(s => { if (s.tipoKey && countByType[s.tipoKey] !== undefined) countByType[s.tipoKey]++; });
 
-    const timeoutId = setTimeout(() => {}, 3000); // placeholder; o onTimeout do toast executa a deleção
-    setPendingDeletion(prev => ({ ...prev, [id]: { timeoutId } }));
-    showNotification('Sensor marcado para exclusão', 'warning', 'Desfazer', () => {
-      const pending = pendingDeletion[id] || { timeoutId };
-      clearTimeout(pending.timeoutId);
-      setPendingDeletion((prev) => {
-        const copy = { ...prev };
-        delete copy[id];
-        return copy;
-      });
-      showNotification('Exclusão desfeita.', 'success');
-    });
-  };
+  const temFiltroAtivo = busca || tipoFiltro;
 
-  // Se há erro, mostrar tela de erro
-  if (error) {
-    return <AuthError error={error} onRetry={() => window.location.reload()} />;
+  if (loading) {
+    return (
+      <MemberLayout title="Sensores" subtitle="Sensores conectados aos seus cativeiros">
+        <div className={styles.loadingScreen} style={{ minHeight: 'unset', padding: '60px 0' }}>
+          Carregando sensores...
+        </div>
+      </MemberLayout>
+    );
   }
 
-  // Se está carregando, mostrar loading
-  if (loading) {
-    return <Loading message="Carregando sensores..." />;
+  if (error) {
+    return (
+      <MemberLayout title="Sensores" subtitle="Sensores conectados aos seus cativeiros">
+        <div className={styles.emptyState}>
+          <div className={styles.emptyStateIcon}>⚠️</div>
+          <p className={styles.emptyStateText}>{error}</p>
+        </div>
+      </MemberLayout>
+    );
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ 
-        width: '100%', 
-        maxWidth: 600, 
-        padding: '16px', 
-        margin: '0 auto', 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column',
-        boxSizing: 'border-box'
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          position: 'relative',
-          marginBottom: 16,
-          minHeight: '48px'
-        }}>
-          <button 
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              fontSize: 24, 
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '4px',
-              transition: 'background-color 0.2s',
-              position: 'absolute',
-              left: 0,
-              zIndex: 2
-            }} 
-            onClick={() => {
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                router.push('/home');
-              }
-            }}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = 'rgba(0,0,0,0.05)';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = 'transparent';
-            }}
-            title="Voltar"
-          >
-            &larr;
-          </button>
-          <h2 style={{ 
-            width: '100%', 
-            textAlign: 'center', 
-            margin: 0, 
-            fontWeight: 600,
-            fontSize: '1.25rem'
-          }}>
-            Sistema
-          </h2>
-        </div>
-        <div className={styles.headerContainer}>
-          <span className={styles.headerTitle}>Sensores</span>
-          <div style={{ flex: 1 }} />
-          <div className={styles.headerActions}>
-            <button 
-              className={`${styles.headerButton} ${ordenacaoAtiva ? styles.activeButton : ''}`} 
-              title={ordenacaoAtiva ? "Desordenar" : "Ordenar por código decrescente"}
-              onClick={handleOrdenar}
-            >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                <path d="M3 18h6M3 6h18M3 12h12" stroke={ordenacaoAtiva ? "#3b82f6" : "#222"} strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-            </button>
-            <button 
-              className={`${styles.headerButton} ${styles.filterButton}`}
-              title={filtroAtivo ? `Filtro ativo: ${filtroAtivo}` : "Filtrar"} 
-              onClick={() => setShowFiltroModal(true)}
-            >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                <path d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a1 1 0 0 1-.293.707l-6.414 6.414A1 1 0 0 0 13 13.414V19a1 1 0 0 1-1.447.894l-4-2A1 1 0 0 1 7 17v-3.586a1 1 0 0 0-.293-.707L3.293 6.707A1 1 0 0 1 3 6V4Z" stroke={filtroAtivo ? "#3b82f6" : "#222"} strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              {filtroAtivo && <div className={styles.filterIndicator} />}
-            </button>
-            {role !== 'membro' && (
-              <button 
-                className={styles.headerButton}
-                title="Cadastrar Sensor" 
-                onClick={() => router.push('/create-sensores')}
-              >
-                <svg width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#222" strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke="#222" strokeWidth="2"/></svg>
-              </button>
-            )}
-          </div>
-        </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
-          <SensorList 
-            sensores={sensoresFiltrados} 
-            onEdit={undefined}
-            onDelete={undefined}
-            useOriginalIndex={ordenacaoAtiva}
-            originalSensores={sensores}
-          />
-        </div>
-      </div>
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'center', margin: '32px 0 16px 0' }}>
-        <img src="/images/logo.svg" alt="Camarize Logo" style={{ width: 180, height: 40 }} />
-      </div>
-      
-      {/* Modal de confirmação de exclusão - removido para funcionário */}
+    <MemberLayout title="Sensores" subtitle="Sensores conectados aos seus cativeiros">
+      <div className={styles.section}>
 
-      {/* Componente de Notificação */}
+        {/* Cabeçalho */}
+        <div className={styles.sectionHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>Sensores IoT</h2>
+            <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+              {sensores.length} sensor{sensores.length !== 1 ? 'es' : ''} vinculado{sensores.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSm}`}
+            onClick={() => setOrdenado(o => !o)}
+            title={ordenado ? 'Remover ordenação' : 'Ordenar por código decrescente'}
+            style={ordenado ? { borderColor: '#a3c7f7', background: '#eff6ff', color: '#1d4ed8' } : {}}
+          >
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
+              <path d="M3 18h6M3 6h18M3 12h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            {ordenado ? 'Ordenado ↓' : 'Ordenar'}
+          </button>
+        </div>
+
+        {/* Cards de resumo por tipo */}
+        {sensores.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+            {Object.entries(SENSOR_CFG).map(([key, cfg]) => (
+              <div
+                key={key}
+                onClick={() => setTipoFiltro(tipoFiltro === key ? '' : key)}
+                style={{
+                  flex: 1, minWidth: 110, background: cfg.bg,
+                  borderRadius: 12, padding: '12px 16px',
+                  border: `1px solid ${tipoFiltro === key ? cfg.stripe : cfg.badgeBg}`,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  cursor: 'pointer', transition: 'box-shadow 0.18s',
+                  boxShadow: tipoFiltro === key ? `0 0 0 2px ${cfg.stripe}` : 'none',
+                }}
+              >
+                <span style={{ fontSize: 22 }}>{cfg.icon}</span>
+                <div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: cfg.badgeColor, lineHeight: 1 }}>
+                    {countByType[key]}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: cfg.badgeColor, opacity: 0.8, marginTop: 2 }}>
+                    {cfg.label}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Barra de busca + filtros de tipo */}
+        <div className={styles.filterBar} style={{ alignItems: 'center' }}>
+          {/* Campo de busca com ícone interno */}
+          <div className={styles.filterGroup} style={{ flex: 1 }}>
+            <label className={styles.filterLabel}>Buscar</label>
+            <div style={{ position: 'relative' }}>
+              <svg
+                width="15" height="15" fill="none" viewBox="0 0 24 24"
+                style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }}
+              >
+                <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/>
+                <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              <input
+                className={styles.filterInput}
+                type="text"
+                placeholder="Tipo, apelido ou cativeiro..."
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                style={{ paddingLeft: 32, width: '100%', minWidth: 0 }}
+              />
+            </div>
+          </div>
+
+          {/* Pills de tipo */}
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel}>Tipo</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {FILTROS_TIPO.map(({ key, label }) => {
+                const cfg = SENSOR_CFG[key];
+                const active = tipoFiltro === key;
+                return (
+                  <button
+                    key={key || 'todos'}
+                    onClick={() => setTipoFiltro(key)}
+                    className={`${styles.btn} ${styles.btnSm}`}
+                    style={{
+                      background: active ? (cfg?.badgeBg || '#1e293b') : '#f8fafc',
+                      color: active ? (cfg?.badgeColor || '#fff') : '#64748b',
+                      border: `1px solid ${active ? (cfg?.stripe || '#1e293b') : '#e2e8f0'}`,
+                      fontWeight: active ? 600 : 400,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {cfg ? `${cfg.icon} ${label}` : label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Contador de resultados quando há filtro ativo */}
+          {temFiltroAtivo && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignSelf: 'flex-end' }}>
+              <span className={styles.filterCount}>
+                {lista.length} de {sensores.length}
+              </span>
+              <button
+                onClick={() => { setBusca(''); setTipoFiltro(''); }}
+                className={`${styles.btn} ${styles.btnSm}`}
+                style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', fontSize: 11 }}
+              >
+                Limpar filtros
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Lista de sensores */}
+        {lista.length === 0 ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyStateIcon}>📡</div>
+            <p className={styles.emptyStateText}>
+              {sensores.length === 0
+                ? 'Nenhum sensor vinculado aos seus cativeiros.'
+                : 'Nenhum sensor corresponde ao filtro aplicado.'}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 12 }}>
+            {lista.map((sensor) => {
+              const cfg = SENSOR_CFG[sensor.tipoKey] || DEFAULT_CFG;
+              const displayIdx = sensores.findIndex(s => s._id === sensor._id) + 1;
+              return (
+                <div
+                  key={sensor._id}
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 14,
+                    overflow: 'hidden',
+                    transition: 'box-shadow 0.2s, transform 0.15s',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  {/* Stripe colorida superior */}
+                  <div style={{ height: 4, background: cfg.stripe }} />
+
+                  <div style={{ padding: '14px 16px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12,
+                        background: cfg.bg, display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        fontSize: 22, flexShrink: 0,
+                      }}>
+                        {cfg.icon}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontWeight: 600, fontSize: '0.9rem', color: '#1e293b',
+                          marginBottom: 4, whiteSpace: 'nowrap',
+                          overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {sensor.apelido || 'Sem apelido'}
+                        </div>
+                        <span style={{
+                          display: 'inline-block',
+                          background: cfg.badgeBg, color: cfg.badgeColor,
+                          padding: '2px 9px', borderRadius: 20,
+                          fontSize: '10.5px', fontWeight: 700,
+                          textTransform: 'capitalize', letterSpacing: '0.03em',
+                        }}>
+                          {cfg.label}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontFamily: 'monospace', fontSize: 11,
+                        color: '#94a3b8', background: '#f1f5f9',
+                        padding: '2px 7px', borderRadius: 6, flexShrink: 0,
+                      }}>
+                        #{String(displayIdx).padStart(3, '0')}
+                      </span>
+                    </div>
+
+                    {/* Cativeiro */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: '#f8fafc', borderRadius: 8,
+                      padding: '6px 10px', fontSize: '0.78rem', color: '#64748b',
+                    }}>
+                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" style={{ flexShrink: 0, color: '#94a3b8' }}>
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {sensor.cativeiroNome}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {notification.show && (
         <Notification
           isVisible={notification.show}
           message={notification.message}
           type={notification.type}
-          onClose={hideNotification}
-          actionLabel={notification.actionLabel}
-          onAction={notification.onAction}
-          showProgress={notification.message?.toLowerCase().includes('marcado para exclusão')}
-          progressDuration={3000}
-          duration={notification.message?.toLowerCase().includes('marcado para exclusão') ? 3000 : 3000}
-          onTimeout={async () => {
-            const ids = Object.keys(pendingDeletion);
-            if (ids.length === 0) return;
-            const idToDelete = ids[0];
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-            try {
-              await axios.delete(`${apiUrl}/sensores/${idToDelete}`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {}
-              });
-              setPendingDeletion((prev) => {
-                const copy = { ...prev };
-                delete copy[idToDelete];
-                return copy;
-              });
-              const res = await axios.get(`${apiUrl}/sensores`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {}
-              });
-              setSensores(res.data);
-              setSensoresFiltrados(res.data);
-              showNotification('Sensor excluído com sucesso!', 'success');
-            } catch (err) {
-              console.error('Erro ao deletar sensor:', err);
-              setPendingDeletion((prev) => {
-                const copy = { ...prev };
-                delete copy[idToDelete];
-                return copy;
-              });
-              const apiMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Erro ao excluir sensor';
-              showNotification(apiMsg, 'error');
-            }
-          }}
+          onClose={() => setNotification({ show: false, message: '', type: 'success' })}
         />
       )}
-
-      {/* Modal de Filtro */}
-      {showFiltroModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          backdropFilter: 'blur(4px)'
-        }}>
-          <div style={{
-            background: '#fff',
-            padding: '32px 24px',
-            borderRadius: '16px',
-            minWidth: '320px',
-            maxWidth: '90vw',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px',
-            alignItems: 'center',
-            textAlign: 'center',
-            border: '1px solid #e5e7eb'
-          }}>
-            {/* Título */}
-            <div style={{
-              fontWeight: '700',
-              fontSize: '20px',
-              color: '#1f2937',
-              lineHeight: '1.2'
-            }}>
-              Filtrar Sensores
-            </div>
-            
-            {/* Campo de busca */}
-            <div style={{ width: '100%' }}>
-              <input
-                type="text"
-                placeholder="Digite o nome do sensor..."
-                value={filtroAtivo}
-                onChange={(e) => setFiltroAtivo(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            {/* Filtros rápidos */}
-            <div style={{ width: '100%' }}>
-              <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '12px' }}>
-                Filtros rápidos:
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <button
-                  onClick={() => setFiltroAtivo('Temperatura')}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    border: '1px solid #d1d5db',
-                    background: filtroAtivo === 'Temperatura' ? '#3b82f6' : '#fff',
-                    color: filtroAtivo === 'Temperatura' ? '#fff' : '#374151',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '500'
-                  }}
-                >
-                  Temperatura
-                </button>
-                <button
-                  onClick={() => setFiltroAtivo('pH')}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    border: '1px solid #d1d5db',
-                    background: filtroAtivo === 'pH' ? '#3b82f6' : '#fff',
-                    color: filtroAtivo === 'pH' ? '#fff' : '#374151',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '500'
-                  }}
-                >
-                  pH
-                </button>
-                <button
-                  onClick={() => setFiltroAtivo('Amônia')}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    border: '1px solid #d1d5db',
-                    background: filtroAtivo === 'Amônia' ? '#3b82f6' : '#fff',
-                    color: filtroAtivo === 'Amônia' ? '#fff' : '#374151',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '500'
-                  }}
-                >
-                  Amônia
-                </button>
-              </div>
-            </div>
-
-            {/* Contador de resultados */}
-            <div style={{ fontSize: '14px', color: '#6b7280' }}>
-              {filtroAtivo ? `${sensoresFiltrados.length} de ${sensores.length} sensores encontrados` : `${sensores.length} sensores no total`}
-            </div>
-            
-            {/* Botões */}
-            <div style={{
-              display: 'flex',
-              gap: '12px',
-              width: '100%',
-              marginTop: '8px'
-            }}>
-              <button 
-                onClick={() => {
-                  setFiltroAtivo('');
-                  setShowFiltroModal(false);
-                }}
-                style={{
-                  flex: 1,
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  border: '1px solid #d1d5db',
-                  background: '#fff',
-                  color: '#374151',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.background = '#f9fafb';
-                  e.target.style.borderColor = '#9ca3af';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.background = '#fff';
-                  e.target.style.borderColor = '#d1d5db';
-                }}
-              >
-                Limpar
-              </button>
-              <button 
-                onClick={() => setShowFiltroModal(false)}
-                style={{
-                  flex: 1,
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: '#3b82f6',
-                  color: '#fff',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.background = '#2563eb';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.background = '#3b82f6';
-                }}
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* NavBottom */}
-      <NavBottom />
-    </div>
+    </MemberLayout>
   );
-} 
+}

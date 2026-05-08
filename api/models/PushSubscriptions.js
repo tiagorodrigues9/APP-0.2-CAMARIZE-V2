@@ -36,8 +36,7 @@ const pushSubscriptionSchema = new mongoose.Schema({
   }
 });
 
-// Índice para busca rápida por usuário
-pushSubscriptionSchema.index({ userId: 1 });
+// Índice para busca por endpoint (userId já tem índice via definição do campo)
 pushSubscriptionSchema.index({ 'subscription.endpoint': 1 }, { unique: true });
 
 const PushSubscription = mongoose.model('PushSubscription', pushSubscriptionSchema);

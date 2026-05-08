@@ -33,7 +33,7 @@ export function useAuth() {
       // Verificar se o token é válido fazendo uma requisição
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
       const response = await axios.get(`${apiUrl}/users/me`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' }
       });
       
       setIsAuthenticated(true);

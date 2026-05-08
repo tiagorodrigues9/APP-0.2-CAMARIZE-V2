@@ -195,7 +195,7 @@ export default function CreateContent() {
           <option value="">Selecione o sítio</option>
           {fazendas.map(f => (
             <option key={f._id} value={f._id}>
-              {f.nome} - {f.codigo}
+              {f.nome}
             </option>
           ))}
         </select>

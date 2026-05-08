@@ -7,6 +7,38 @@ import Cativeiros from "../models/Cativeiros.js";
 import ParametrosAtuais from "../models/Parametros_atuais.js";
 import Dietas from "../models/Dietas.js";
 import DietasxCativeiros from "../models/DietasxCativeiros.js";
+import UsuariosxFazendas from "../models/UsuariosxFazendas.js";
+
+/**
+ * Verifica se um usuário tem permissão para acessar um cativeiro.
+ * @returns {true}  acesso permitido
+ * @returns {false} sem permissão
+ * @returns {null}  cativeiro não encontrado
+ */
+const assertCativeiroAccess = async (cativeiroId, userId, role) => {
+  if (role === 'master') return true;
+
+  const cativeiro = await Cativeiros.findById(cativeiroId).select('user').lean();
+  if (!cativeiro) return null;
+
+  // Dono direto do cativeiro
+  if (cativeiro.user?.toString() === userId.toString()) return true;
+
+  // Fallback: usuário pertence à fazenda que contém o cativeiro
+  const fazendasDoUsuario = await UsuariosxFazendas.find({
+    usuario: userId,
+    $or: [{ ativo: true }, { ativo: { $exists: false } }]
+  }).select('fazenda').lean();
+
+  if (fazendasDoUsuario.length === 0) return false;
+
+  const vinculo = await FazendasxCativeiros.findOne({
+    fazenda: { $in: fazendasDoUsuario.map(f => f.fazenda) },
+    cativeiro: cativeiroId
+  }).lean();
+
+  return vinculo !== null;
+};
 
 const createCativeiro = async (req, res) => {
   try {
@@ -151,13 +183,13 @@ const getAllCativeiros = async (req, res) => {
     console.log('🔍 DEBUG req.loggedUser completo:', req.loggedUser);
     
     let cativeiros = [];
-    if (role === 'master' || role === 'admin') {
-      // Master e Admin enxergam todos os cativeiros, já com dados de fazenda anexados
-      console.log('🔍 DEBUG - Buscando todos os cativeiros para', role);
+    if (role === 'master') {
+      // Master enxerga todos os cativeiros
+      console.log('🔍 DEBUG - Buscando todos os cativeiros para master');
       cativeiros = await cativeiroService.getAll();
       console.log('🔍 DEBUG - Cativeiros encontrados:', cativeiros.length);
     } else {
-      // Membro ve pelos relacionamentos das suas fazendas
+      // Admin e Membro veem apenas seus próprios cativeiros pelos relacionamentos das suas fazendas
       console.log('🔍 DEBUG - Buscando cativeiros por relacionamentos para role:', role);
       cativeiros = await cativeiroService.getAllByUsuarioViaRelacionamentos(usuarioId);
       console.log('🔍 DEBUG - Cativeiros encontrados por relacionamento:', cativeiros.length);
@@ -173,7 +205,7 @@ const getAllCativeiros = async (req, res) => {
 
 const getAllTiposCamarao = async (req, res) => {
   try {
-    const tipos = await TiposCamarao.find();
+    const tipos = await TiposCamarao.find().lean(); // Usa lean() para melhor performance
     res.status(200).json(tipos);
   } catch (error) {
     res.status(500).json({ error: "Erro ao buscar tipos de camarão." });
@@ -189,7 +221,15 @@ const getCativeiroById = async (req, res) => {
     if (!cativeiro) {
       return res.status(404).json({ error: 'Cativeiro não encontrado.' });
     }
-    
+
+    // Ownership check — só roda quando chamado via HTTP (req.loggedUser existe).
+    // Quando chamado internamente pelo endpoint de foto (req falso sem loggedUser), é ignorado.
+    if (req.loggedUser) {
+      const access = await assertCativeiroAccess(id, req.loggedUser.id, req.loggedUser.role);
+      if (access === null) return res.status(404).json({ error: 'Cativeiro não encontrado.' });
+      if (access === false) return res.status(403).json({ error: 'Acesso negado. Você não tem permissão para visualizar este cativeiro.' });
+    }
+
     console.log('📊 Dados do cativeiro antes do JSON:');
     console.log('  ID:', cativeiro._id);
     console.log('  Fazenda:', cativeiro.fazenda);
@@ -347,7 +387,7 @@ const deleteCativeiro = async (req, res) => {
 
 const getAllCondicoesIdeais = async (req, res) => {
   try {
-    const condicoes = await CondicoesIdeais.find().populate('id_tipo_camarao');
+    const condicoes = await CondicoesIdeais.find().populate('id_tipo_camarao').lean(); // Usa lean() para melhor performance
     res.status(200).json(condicoes);
   } catch (error) {
     res.status(500).json({ error: "Erro ao buscar condições ideais." });
@@ -357,11 +397,32 @@ const getAllCondicoesIdeais = async (req, res) => {
 const getSensoresCativeiro = async (req, res) => {
   try {
     const { cativeiroId } = req.params;
+
+    const access = await assertCativeiroAccess(cativeiroId, req.loggedUser.id, req.loggedUser.role);
+    if (access === null) return res.status(404).json({ error: 'Cativeiro não encontrado.' });
+    if (access === false) return res.status(403).json({ error: 'Acesso negado. Você não tem permissão para visualizar os sensores deste cativeiro.' });
+
+    // Popula id_sensor e também o id_tipo_sensor interno para que o frontend receba
+    // a descrição do tipo do sensor (TiposSensor.descricao)
     const sensores = await SensoresxCativeiros.find({ id_cativeiro: cativeiroId })
-      .populate('id_sensor')
+      .populate({
+        path: 'id_sensor',
+        populate: {
+          path: 'id_tipo_sensor',
+          select: 'descricao'
+        }
+      })
       .populate('id_cativeiro');
-    res.status(200).json(sensores);
+    
+    // Converter para objetos simples manualmente para manter performance
+    const sensoresSimplificados = sensores.map(s => {
+      const sObj = s.toObject ? s.toObject() : s;
+      return sObj;
+    });
+    
+    res.status(200).json(sensoresSimplificados);
   } catch (error) {
+    console.error('Erro ao buscar sensores do cativeiro:', error);
     res.status(500).json({ error: "Erro ao buscar sensores do cativeiro." });
   }
 };
@@ -381,13 +442,33 @@ const getCativeirosStatus = async (req, res) => {
     let cativeirosCritico = 0;
     let cativeirosSemDados = 0;
 
+    // OTIMIZAÇÃO: Buscar todos os parâmetros de uma vez usando agregação
+    const cativeiroIds = cativeiros.map(c => c._id);
+    const parametrosRecentes = await ParametrosAtuais.aggregate([
+      { $match: { id_cativeiro: { $in: cativeiroIds } } },
+      { $sort: { datahora: -1 } },
+      {
+        $group: {
+          _id: '$id_cativeiro',
+          temp_atual: { $first: '$temp_atual' },
+          ph_atual: { $first: '$ph_atual' },
+          amonia_atual: { $first: '$amonia_atual' },
+          datahora: { $first: '$datahora' }
+        }
+      }
+    ]);
+    
+    // Criar mapa para acesso rápido
+    const parametrosMap = new Map();
+    parametrosRecentes.forEach(p => {
+      parametrosMap.set(p._id.toString(), p);
+    });
+
     for (const cativeiro of cativeiros) {
       totalCativeiros++;
       
-      // Busca o parâmetro atual mais recente para este cativeiro
-      const parametroAtual = await ParametrosAtuais.findOne({ 
-        id_cativeiro: cativeiro._id 
-      }).sort({ datahora: -1 });
+      // Busca o parâmetro atual do mapa
+      const parametroAtual = parametrosMap.get(cativeiro._id.toString());
       
       if (!parametroAtual || !cativeiro.condicoes_ideais) {
         cativeirosComStatus.push({
@@ -564,4 +645,29 @@ const getCativeirosStatus = async (req, res) => {
   }
 };
 
-export default { createCativeiro, getAllCativeiros, getAllTiposCamarao, getCativeiroById, updateCativeiro, deleteCativeiro, getAllCondicoesIdeais, getSensoresCativeiro, getCativeirosStatus }; 
+// Método específico para atualizar dados do cativeiro sem enviar resposta
+const updateCativeiroData = async (id, data) => {
+  try {
+    const result = await cativeiroService.update(id, data);
+    if (!result) {
+      throw new Error('Cativeiro não encontrado.');
+    }
+    return result;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export default {
+  createCativeiro,
+  getAllCativeiros,
+  getAllTiposCamarao,
+  getCativeiroById,
+  updateCativeiro,
+  updateCativeiroData,
+  deleteCativeiro,
+  getAllCondicoesIdeais,
+  getSensoresCativeiro,
+  getCativeirosStatus,
+  assertCativeiroAccess,
+}; 
