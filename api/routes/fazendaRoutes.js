@@ -2,6 +2,7 @@ import express from "express";
 const fazendaRoutes = express.Router();
 import fazendaController from "../controllers/fazendaController.js";
 import Auth from '../middleware/Auth.js';
+import Cache from '../middleware/cache.js';
 
 /**
  * @swagger
@@ -26,7 +27,7 @@ import Auth from '../middleware/Auth.js';
  *               items:
  *                 $ref: '#/components/schemas/Fazenda'
  */
-fazendaRoutes.get("/public", fazendaController.getAllFazendasPublic);
+fazendaRoutes.get("/public", Cache.cacheControl(120, 180), fazendaController.getAllFazendasPublic);
 
 /**
  * @swagger
@@ -80,7 +81,7 @@ fazendaRoutes.post("/", Auth.Authorization, fazendaController.createFazenda);
  *       401:
  *         description: Não autenticado
  */
-fazendaRoutes.get("/", Auth.Authorization, fazendaController.getAllFazendas);
+fazendaRoutes.get("/", Auth.Authorization, Cache.cacheControl(120, 180), fazendaController.getAllFazendas);
 
 /**
  * @swagger
@@ -105,7 +106,7 @@ fazendaRoutes.get("/", Auth.Authorization, fazendaController.getAllFazendas);
  *       404:
  *         description: Fazenda não encontrada
  */
-fazendaRoutes.get("/:id", fazendaController.getFazendaById);
+fazendaRoutes.get("/:id", Cache.cacheControl(120, 180), fazendaController.getFazendaById);
 
 /**
  * @swagger

@@ -1,5 +1,6 @@
 import express from "express";
 import Auth from "../middleware/Auth.js";
+import Cache from '../middleware/cache.js';
 import dietaController from "../controllers/dietaController.js";
 
 const router = express.Router();
@@ -35,7 +36,7 @@ const router = express.Router();
  *       404:
  *         description: Nenhuma dieta ativa para este viveiro
  */
-router.get("/atual/:cativeiroId", dietaController.getDietaAtual);
+router.get("/atual/:cativeiroId", Cache.cacheControl(60, 120), dietaController.getDietaAtual);
 
 /**
  * @swagger
@@ -78,7 +79,7 @@ router.get("/atual/:cativeiroId", dietaController.getDietaAtual);
  *         description: Sem permissão (apenas master)
  */
 router.post("/", Auth.Authorization, Auth.RequireRole(['admin','master']), dietaController.createDieta);
-router.get("/", Auth.Authorization, Auth.RequireRole(['master']), dietaController.listDietas);
+router.get("/", Auth.Authorization, Auth.RequireRole(['master']), Cache.cacheControl(120, 180), dietaController.listDietas);
 
 /**
  * @swagger

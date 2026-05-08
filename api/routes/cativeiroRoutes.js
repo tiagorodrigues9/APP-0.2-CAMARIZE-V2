@@ -5,6 +5,7 @@ import Cativeiros from "../models/Cativeiros.js";
 import multer from 'multer';
 const upload = multer();
 import Auth from '../middleware/Auth.js';
+import Cache from '../middleware/cache.js';
 
 /**
  * @swagger
@@ -72,7 +73,7 @@ cativeiroRoutes.post("/cativeiros", Auth.Authorization, upload.single('foto_cati
  *       401:
  *         description: Não autenticado
  */
-cativeiroRoutes.get("/cativeiros", Auth.Authorization, cativeiroController.getAllCativeiros);
+cativeiroRoutes.get("/cativeiros", Auth.Authorization, Cache.cacheControl(60, 120), cativeiroController.getAllCativeiros);
 
 /**
  * @swagger
@@ -100,7 +101,7 @@ cativeiroRoutes.get("/cativeiros", Auth.Authorization, cativeiroController.getAl
  *                     type: string
  *                     enum: [normal, alerta, critico]
  */
-cativeiroRoutes.get("/cativeiros-status", Auth.Authorization, cativeiroController.getCativeirosStatus);
+cativeiroRoutes.get("/cativeiros-status", Auth.Authorization, Cache.cacheControl(60, 120), cativeiroController.getCativeirosStatus);
 
 /**
  * @swagger
@@ -125,7 +126,7 @@ cativeiroRoutes.get("/cativeiros-status", Auth.Authorization, cativeiroControlle
  *       404:
  *         description: Viveiro não encontrado
  */
-cativeiroRoutes.get("/cativeiros/:id", Auth.Authorization, cativeiroController.getCativeiroById);
+cativeiroRoutes.get("/cativeiros/:id", Auth.Authorization, Cache.cacheControl(60, 120), cativeiroController.getCativeiroById);
 
 /**
  * @swagger
@@ -149,7 +150,7 @@ cativeiroRoutes.get("/cativeiros/:id", Auth.Authorization, cativeiroController.g
  *               items:
  *                 $ref: '#/components/schemas/Sensor'
  */
-cativeiroRoutes.get("/cativeiros/:cativeiroId/sensores", Auth.Authorization, cativeiroController.getSensoresCativeiro);
+cativeiroRoutes.get("/cativeiros/:cativeiroId/sensores", Auth.Authorization, Cache.cacheControl(60, 120), cativeiroController.getSensoresCativeiro);
 
 /**
  * @swagger
@@ -167,7 +168,7 @@ cativeiroRoutes.get("/cativeiros/:cativeiroId/sensores", Auth.Authorization, cat
  *               items:
  *                 $ref: '#/components/schemas/TipoCamarao'
  */
-cativeiroRoutes.get("/tipos-camarao", cativeiroController.getAllTiposCamarao);
+cativeiroRoutes.get("/tipos-camarao", Cache.cacheControl(120, 180), cativeiroController.getAllTiposCamarao);
 
 /**
  * @swagger
@@ -185,7 +186,7 @@ cativeiroRoutes.get("/tipos-camarao", cativeiroController.getAllTiposCamarao);
  *               items:
  *                 $ref: '#/components/schemas/CondicoesIdeais'
  */
-cativeiroRoutes.get("/condicoes-ideais", cativeiroController.getAllCondicoesIdeais);
+cativeiroRoutes.get("/condicoes-ideais", Cache.cacheControl(120, 180), cativeiroController.getAllCondicoesIdeais);
 
 /**
  * @swagger

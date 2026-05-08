@@ -2,6 +2,7 @@ import express from "express";
 const userRoutes = express.Router();
 import userController from "../controllers/userController.js";
 import Auth from "../middleware/Auth.js";
+import Cache from '../middleware/cache.js';
 
 /**
  * @swagger
@@ -256,7 +257,7 @@ userRoutes.post("/check-email", userController.checkEmailExists);
  *       401:
  *         description: Não autorizado
  */
-userRoutes.get("/me", Auth.Authorization, userController.getCurrentUser);
+userRoutes.get("/me", Auth.Authorization, Cache.cacheControl(120, 180), userController.getCurrentUser);
 
 /**
  * @swagger
@@ -298,7 +299,7 @@ userRoutes.post("/logout", Auth.Authorization, userController.logoutUser);
  *       403:
  *         description: Sem permissão
  */
-userRoutes.get('/masters/all', Auth.Authorization, Auth.RequireRole(['admin','master']), userController.listMasters);
+userRoutes.get('/masters/all', Auth.Authorization, Auth.RequireRole(['admin','master']), Cache.cacheControl(120, 180), userController.listMasters);
 
 /**
  * @swagger
@@ -537,7 +538,7 @@ userRoutes.post('/associar-funcionario', Auth.Authorization, Auth.RequireRole(['
  *       403:
  *         description: Sem permissão
  */
-userRoutes.get('/funcionarios/fazenda', Auth.Authorization, Auth.RequireRole(['admin']), userController.getFuncionariosDaFazenda);
+userRoutes.get('/funcionarios/fazenda', Auth.Authorization, Auth.RequireRole(['admin']), Cache.cacheControl(60, 120), userController.getFuncionariosDaFazenda);
 
 /**
  * @swagger

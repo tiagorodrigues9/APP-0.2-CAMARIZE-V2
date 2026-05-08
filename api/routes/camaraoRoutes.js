@@ -1,6 +1,7 @@
 import express from "express";
 const camaraoRoutes = express.Router();
 import camaraoController from "../controllers/camaraoController.js";
+import Cache from '../middleware/cache.js';
 
 /**
  * @swagger
@@ -46,6 +47,6 @@ import camaraoController from "../controllers/camaraoController.js";
  *                 $ref: '#/components/schemas/TipoCamarao'
  */
 camaraoRoutes.post("/camaroes", camaraoController.createCamarao);
-camaraoRoutes.get("/camaroes", camaraoController.getAllCamaroes);
+camaraoRoutes.get("/camaroes", Cache.cacheControl(120, 180), camaraoController.getAllCamaroes);
 
 export default camaraoRoutes;

@@ -1,0 +1,9 @@
+const cacheControl = (maxAge, swrMaxAge = 0) => (req, res, next) => {
+  const directive = swrMaxAge > 0
+    ? `private, max-age=${maxAge}, stale-while-revalidate=${swrMaxAge}`
+    : `private, max-age=${maxAge}`;
+  res.set('Cache-Control', directive);
+  next();
+};
+
+export default { cacheControl };

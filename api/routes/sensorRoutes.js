@@ -3,6 +3,7 @@ const sensorRoutes = express.Router();
 import sensorController from "../controllers/sensorController.js";
 import multer from 'multer';
 import Auth from "../middleware/Auth.js";
+import Cache from '../middleware/cache.js';
 
 const upload = multer();
 
@@ -65,7 +66,7 @@ const upload = multer();
  *         description: Não autenticado
  */
 sensorRoutes.post("/sensores", Auth.Authorization, upload.single('foto_sensor'), sensorController.createSensor);
-sensorRoutes.get("/sensores", Auth.Authorization, sensorController.getAllSensores);
+sensorRoutes.get("/sensores", Auth.Authorization, Cache.cacheControl(60, 120), sensorController.getAllSensores);
 
 /**
  * @swagger
@@ -136,7 +137,7 @@ sensorRoutes.get("/sensores", Auth.Authorization, sensorController.getAllSensore
  *       404:
  *         description: Sensor não encontrado
  */
-sensorRoutes.get("/sensores/:id", Auth.Authorization, sensorController.getSensorById);
+sensorRoutes.get("/sensores/:id", Auth.Authorization, Cache.cacheControl(60, 120), sensorController.getSensorById);
 sensorRoutes.put("/sensores/:id", Auth.Authorization, upload.single('foto_sensor'), sensorController.updateSensor);
 sensorRoutes.delete("/sensores/:id", Auth.Authorization, sensorController.deleteSensor);
 

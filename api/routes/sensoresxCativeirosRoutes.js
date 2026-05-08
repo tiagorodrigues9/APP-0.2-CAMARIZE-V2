@@ -1,5 +1,6 @@
 import express from "express";
 import SensoresxCativeiros from "../models/SensoresxCativeiros.js";
+import Cache from '../middleware/cache.js';
 
 const router = express.Router();
 
@@ -74,7 +75,7 @@ const router = express.Router();
  *       404:
  *         description: Associação não encontrada
  */
-router.get("/", async (req, res) => {
+router.get("/", Cache.cacheControl(120, 180), async (req, res) => {
   try {
     const sensoresxCativeiros = await SensoresxCativeiros.find()
       .populate('id_sensor')
