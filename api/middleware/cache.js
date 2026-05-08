@@ -3,6 +3,7 @@ const cacheControl = (maxAge, swrMaxAge = 0) => (req, res, next) => {
     ? `private, max-age=${maxAge}, stale-while-revalidate=${swrMaxAge}`
     : `private, max-age=${maxAge}`;
   res.set('Cache-Control', directive);
+  res.set('Vary', 'Authorization');
   next();
 };
 
