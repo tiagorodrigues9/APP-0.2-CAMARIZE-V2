@@ -109,6 +109,7 @@ export default function AdminPanel() {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const confirmLogout = async () => {
     setIsLoggingOut(true);
@@ -803,8 +804,12 @@ export default function AdminPanel() {
     <div className={styles.layout}>
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleCativeiroFileChange} />
 
+      {mobileMenuOpen && (
+        <div className={styles.backdrop} onClick={() => setMobileMenuOpen(false)} />
+      )}
+
       {/* SIDEBAR */}
-      <aside className={styles.sidebar}>
+      <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
           <img src="/images/logo.svg" className={styles.sidebarLogo} alt="Logo" />
           <div className={styles.sidebarRole}>Painel Admin</div>
@@ -814,7 +819,7 @@ export default function AdminPanel() {
             <button
               key={id}
               className={`${styles.navItem} ${tab === id ? styles.navItemActive : ''}`}
-              onClick={() => { setTab(id); if (id === 'chat') loadConversationsOnce(); }}
+              onClick={() => { setTab(id); if (id === 'chat') loadConversationsOnce(); setMobileMenuOpen(false); }}
             >
               <Icon className={styles.navIcon} />
               <span className={styles.navLabel}>{label}</span>
@@ -830,7 +835,7 @@ export default function AdminPanel() {
               <div className={styles.userRoleBadge}>Administrador</div>
             </div>
           </div>
-          <button className={styles.sidebarLogoutBtn} onClick={() => setShowLogoutModal(true)}>
+          <button className={styles.sidebarLogoutBtn} onClick={() => { setMobileMenuOpen(false); setShowLogoutModal(true); }}>
             Sair da conta
           </button>
         </div>
@@ -839,8 +844,15 @@ export default function AdminPanel() {
       {/* MAIN */}
       <div className={styles.main}>
         <header className={styles.topBar}>
-          <h1 className={styles.pageTitle}>{(adminPageTitles[tab] || [''])[0]}</h1>
-          <p className={styles.pageSubtitle}>{(adminPageTitles[tab] || ['', ''])[1]}</p>
+          <button className={styles.hamburgerBtn} onClick={() => setMobileMenuOpen(true)} aria-label="Abrir menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <div>
+            <h1 className={styles.pageTitle}>{(adminPageTitles[tab] || [''])[0]}</h1>
+            <p className={styles.pageSubtitle}>{(adminPageTitles[tab] || ['', ''])[1]}</p>
+          </div>
         </header>
         <div className={styles.content}>
 

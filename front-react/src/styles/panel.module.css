@@ -1160,8 +1160,75 @@
   text-transform: uppercase;
 }
 
+/* ===================== PARAM GRID (Condições Ideais / Estatísticas) ===================== */
+.paramGrid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.paramItem {
+  flex: 1;
+  min-width: 130px;
+  padding: 8px 16px;
+}
+
+.paramItem + .paramItem {
+  border-left: 1px solid #f1f5f9;
+}
+
+@media (max-width: 520px) {
+  .paramItem {
+    flex: unset;
+    width: 100%;
+    min-width: 0;
+    padding: 10px 16px;
+    border-left: none !important;
+  }
+  .paramItem + .paramItem {
+    border-top: 1px solid #f1f5f9;
+  }
+  .thIcon {
+    display: none;
+  }
+}
+
+/* ===================== HAMBURGER BUTTON ===================== */
+.hamburgerBtn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  color: #374151;
+  border-radius: 8px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.hamburgerBtn:hover {
+  background: #f1f5f9;
+}
+
+/* ===================== MOBILE BACKDROP ===================== */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 150;
+}
+
+/* Sidebar aberta no drawer mobile */
+.sidebarOpen {
+  transform: translateX(0) !important;
+}
+
 /* ===================== RESPONSIVE ===================== */
-@media (max-width: 900px) {
+
+/* Sidebar icon-only: 769px–900px */
+@media (min-width: 769px) and (max-width: 900px) {
   .sidebar {
     width: 60px;
   }
@@ -1199,11 +1266,51 @@
   }
 }
 
+/* Hamburger drawer: ≤768px */
+@media (max-width: 768px) {
+  .hamburgerBtn {
+    display: flex;
+  }
+
+  .sidebar {
+    width: 260px;
+    transform: translateX(-260px);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 200;
+  }
+
+  .main {
+    margin-left: 0;
+  }
+
+  .topBar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .chatLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .dietaLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .filterGroup {
+    width: 100%;
+  }
+
+  .filterInput {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 @media (max-width: 640px) {
   .content {
     padding: 16px;
-  }
-  .topBar {
-    padding: 12px 16px;
   }
 }

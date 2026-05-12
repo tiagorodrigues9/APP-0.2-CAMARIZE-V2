@@ -245,20 +245,16 @@ export default function RelatorioIndividual() {
                   <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
                     Condições Ideais
                   </div>
-                  <div style={{ display: 'flex', gap: 0, flexWrap: 'wrap' }}>
+                  <div className={panelStyles.paramGrid}>
                     {[
                       { icon: '🌡️', label: 'Temperatura', value: cativeiro.condicoes_ideais.temp_ideal,   unit: '°C',    bg: '#fff7ed', badgeColor: '#c2410c' },
                       { icon: '🧪', label: 'pH',           value: cativeiro.condicoes_ideais.ph_ideal,     unit: '',      bg: '#eff6ff', badgeColor: '#1d4ed8' },
                       { icon: '⚗️', label: 'Amônia',      value: cativeiro.condicoes_ideais.amonia_ideal, unit: ' mg/L', bg: '#fdf4ff', badgeColor: '#7e22ce' },
-                    ].map((p, i, arr) => (
+                    ].map((p) => (
                       <div
                         key={p.label}
-                        style={{
-                          flex: 1, minWidth: 120,
-                          padding: '8px 16px',
-                          borderLeft: i > 0 ? '1px solid #f1f5f9' : 'none',
-                          display: 'flex', alignItems: 'center', gap: 12,
-                        }}
+                        className={panelStyles.paramItem}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12 }}
                       >
                         <div style={{ width: 36, height: 36, borderRadius: 10, background: p.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
                           {p.icon}
@@ -291,18 +287,14 @@ export default function RelatorioIndividual() {
                     <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
                       Estatísticas do Período
                     </div>
-                    <div style={{ display: 'flex', gap: 0, flexWrap: 'wrap' }}>
-                      {PARAM_CFG.map((cfg, i) => {
+                    <div className={panelStyles.paramGrid}>
+                      {PARAM_CFG.map((cfg) => {
                         const stats = calcStats(dados, cfg.key);
                         return (
                           <div
                             key={cfg.key}
-                            style={{
-                              flex: 1, minWidth: 120,
-                              padding: '8px 16px',
-                              borderLeft: i > 0 ? '1px solid #f1f5f9' : 'none',
-                              display: 'flex', alignItems: 'center', gap: 12,
-                            }}
+                            className={panelStyles.paramItem}
+                            style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}
                           >
                             <div style={{ width: 36, height: 36, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
                               {cfg.icon}
@@ -338,9 +330,9 @@ export default function RelatorioIndividual() {
                       <thead>
                         <tr style={{ background: '#f8fafc' }}>
                           <th style={{ padding: '8px 16px', textAlign: 'left', color: '#64748b', fontWeight: 600, borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap' }}>Data / Hora</th>
-                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#f97316', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>🌡️ Temp.</th>
-                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#3b82f6', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>🧪 pH</th>
-                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#a855f7', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>⚗️ NH₃</th>
+                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#f97316', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}><span className={panelStyles.thIcon}>🌡️ </span>Temp.</th>
+                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#3b82f6', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}><span className={panelStyles.thIcon}>🧪 </span>pH</th>
+                          <th style={{ padding: '8px 16px', textAlign: 'right', color: '#a855f7', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}><span className={panelStyles.thIcon}>⚗️ </span>NH₃</th>
                         </tr>
                       </thead>
                       <tbody>

@@ -73,11 +73,18 @@ const NAV_ITEMS = [
   },
 ];
 
+const HamburgerIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+    <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
 export default function MemberLayout({ children, title, subtitle, navItemRefs }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const raw = sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize');
@@ -113,7 +120,11 @@ export default function MemberLayout({ children, title, subtitle, navItemRefs })
 
   return (
     <div className={styles.layout}>
-      <aside className={styles.sidebar}>
+      {mobileMenuOpen && (
+        <div className={styles.backdrop} onClick={() => setMobileMenuOpen(false)} />
+      )}
+
+      <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
           <img src="/images/logo.svg" className={styles.sidebarLogo} alt="Logo" />
           <div className={styles.sidebarRole}>Painel Membro</div>
@@ -125,7 +136,7 @@ export default function MemberLayout({ children, title, subtitle, navItemRefs })
               key={item.href}
               ref={navItemRefs?.[item.href]}
               className={`${styles.navItem} ${isActive(item.href) ? styles.navItemActive : ''}`}
-              onClick={() => router.push(item.href)}
+              onClick={() => { router.push(item.href); setMobileMenuOpen(false); }}
             >
               <span className={styles.navIcon}>{item.icon}</span>
               <span className={styles.navLabel}>{item.label}</span>
@@ -143,7 +154,7 @@ export default function MemberLayout({ children, title, subtitle, navItemRefs })
           </div>
           <button
             className={styles.sidebarLogoutBtn}
-            onClick={() => setShowLogoutModal(true)}
+            onClick={() => { setMobileMenuOpen(false); setShowLogoutModal(true); }}
           >
             Sair da conta
           </button>
@@ -153,8 +164,13 @@ export default function MemberLayout({ children, title, subtitle, navItemRefs })
       <main className={styles.main}>
         {(title || subtitle) && (
           <div className={styles.topBar}>
-            {title && <h1 className={styles.pageTitle}>{title}</h1>}
-            {subtitle && <p className={styles.pageSubtitle}>{subtitle}</p>}
+            <button className={styles.hamburgerBtn} onClick={() => setMobileMenuOpen(true)} aria-label="Abrir menu">
+              <HamburgerIcon />
+            </button>
+            <div>
+              {title && <h1 className={styles.pageTitle}>{title}</h1>}
+              {subtitle && <p className={styles.pageSubtitle}>{subtitle}</p>}
+            </div>
           </div>
         )}
         <div className={styles.content}>

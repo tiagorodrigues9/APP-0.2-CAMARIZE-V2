@@ -128,6 +128,7 @@ export default function MasterPanel() {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const confirmLogout = async () => {
     setIsLoggingOut(true);
@@ -1008,8 +1009,12 @@ export default function MasterPanel() {
   return (
     <div className={styles.layout}>
 
+      {mobileMenuOpen && (
+        <div className={styles.backdrop} onClick={() => setMobileMenuOpen(false)} />
+      )}
+
       {/* SIDEBAR */}
-      <aside className={styles.sidebar}>
+      <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
           <img src="/images/logo.svg" className={styles.sidebarLogo} alt="Logo" />
           <div className={styles.sidebarRole}>Painel Master</div>
@@ -1019,7 +1024,7 @@ export default function MasterPanel() {
             <button
               key={id}
               className={`${styles.navItem} ${tab === id ? styles.navItemActive : ''}`}
-              onClick={() => setTab(id)}
+              onClick={() => { setTab(id); setMobileMenuOpen(false); }}
             >
               <Icon className={styles.navIcon} />
               <span className={styles.navLabel}>{label}</span>
@@ -1035,7 +1040,7 @@ export default function MasterPanel() {
               <div className={styles.userRoleBadge}>Master</div>
             </div>
           </div>
-          <button className={styles.sidebarLogoutBtn} onClick={() => setShowLogoutModal(true)}>
+          <button className={styles.sidebarLogoutBtn} onClick={() => { setMobileMenuOpen(false); setShowLogoutModal(true); }}>
             Sair da conta
           </button>
         </div>
@@ -1044,8 +1049,15 @@ export default function MasterPanel() {
       {/* MAIN */}
       <div className={styles.main}>
         <header className={styles.topBar}>
-          <h1 className={styles.pageTitle}>{(masterPageTitles[tab] || [''])[0]}</h1>
-          <p className={styles.pageSubtitle}>{(masterPageTitles[tab] || ['', ''])[1]}</p>
+          <button className={styles.hamburgerBtn} onClick={() => setMobileMenuOpen(true)} aria-label="Abrir menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <div>
+            <h1 className={styles.pageTitle}>{(masterPageTitles[tab] || [''])[0]}</h1>
+            <p className={styles.pageSubtitle}>{(masterPageTitles[tab] || ['', ''])[1]}</p>
+          </div>
         </header>
         <div className={styles.content}>
 
