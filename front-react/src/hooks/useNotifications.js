@@ -9,9 +9,19 @@ export const useNotifications = () => {
 
   useEffect(() => {
     const checkSupport = () => {
-      const supported = 'serviceWorker' in navigator && 'PushManager' in window;
+      const hasSW   = 'serviceWorker' in navigator;
+      const hasPush = 'PushManager' in window;
+      const supported = hasSW && hasPush;
+
+      console.log('[Camarize Push] Diagnóstico de suporte:', {
+        serviceWorker: hasSW,
+        PushManager: hasPush,
+        supported,
+        protocol: window.location.protocol,
+        host: window.location.host,
+      });
+
       setIsSupported(supported);
-      
       if (supported) {
         checkPermission();
         checkSubscription();
@@ -39,17 +49,33 @@ export const useNotifications = () => {
 
   const registerServiceWorker = async () => {
     try {
-      // Somente registra em produção para evitar cache atrapalhando no desenvolvimento
-      if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
-        // aguarda a página carregar para não competir com o Next em hot reload
-        await new Promise((resolve) => {
-          if (document.readyState === 'complete') return resolve();
-          window.addEventListener('load', () => resolve(), { once: true });
-        });
-        const registration = await navigator.serviceWorker.register('/sw.js');
-        console.log('Service Worker registrado:', registration);
-        return registration;
+      if (!('serviceWorker' in navigator)) return;
+
+      const isProduction = process.env.NODE_ENV === 'production';
+      const devPushEnabled = process.env.NEXT_PUBLIC_ENABLE_PUSH_DEV === 'true';
+
+      if (!isProduction && !devPushEnabled) {
+        console.warn(
+          '[Camarize] Push notifications desabilitado em desenvolvimento. ' +
+          'Para testar localmente, adicione NEXT_PUBLIC_ENABLE_PUSH_DEV=true ao seu .env.local'
+        );
+        throw new Error(
+          'Push não disponível em desenvolvimento. ' +
+          'Adicione NEXT_PUBLIC_ENABLE_PUSH_DEV=true ao .env.local para habilitar.'
+        );
       }
+
+      // aguarda a página carregar para não competir com o Next em hot reload
+      await new Promise((resolve) => {
+        if (document.readyState === 'complete') return resolve();
+        window.addEventListener('load', () => resolve(), { once: true });
+      });
+
+      await navigator.serviceWorker.register('/sw.js');
+      // Aguarda o SW passar para o estado "active" antes de retornar
+      const registration = await navigator.serviceWorker.ready;
+      console.log('Service Worker ativo:', registration);
+      return registration;
     } catch (error) {
       console.error('Erro ao registrar Service Worker:', error);
       throw error;
@@ -90,6 +116,10 @@ export const useNotifications = () => {
 
       // Registrar Service Worker
       const registration = await registerServiceWorker();
+
+      if (!registration) {
+        throw new Error('Service Worker não pôde ser registrado');
+      }
 
       // Solicitar permissão
       const hasPermission = await requestPermission();
@@ -169,16 +199,26 @@ export const useNotifications = () => {
     }
   };
 
+  const getStoredAuth = () => {
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+    try {
+      const u = JSON.parse(sessionStorage.getItem('usuarioCamarize') || localStorage.getItem('usuarioCamarize'));
+      return { token, userId: u?._id || u?.id || null };
+    } catch {
+      return { token, userId: null };
+    }
+  };
+
   const sendSubscriptionToServer = async (subscription) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const userId = localStorage.getItem("userId");
-      
-      const response = await fetch(`${apiUrl}/notifications/subscribe`, {
+      const { token, userId } = getStoredAuth();
+
+      const response = await fetch(`${apiUrl}/notifications/push/subscribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem("token")}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           subscription: subscription,
@@ -191,7 +231,8 @@ export const useNotifications = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao enviar subscription para o servidor');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Erro ao enviar subscription para o servidor');
       }
 
       console.log('Subscription enviada para o servidor');
@@ -204,13 +245,13 @@ export const useNotifications = () => {
   const removeSubscriptionFromServer = async (subscription) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const userId = localStorage.getItem("userId");
-      
-      const response = await fetch(`${apiUrl}/notifications/unsubscribe`, {
+      const { token, userId } = getStoredAuth();
+
+      const response = await fetch(`${apiUrl}/notifications/push/unsubscribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem("token")}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           subscription: subscription,
@@ -219,7 +260,8 @@ export const useNotifications = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao remover subscription do servidor');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Erro ao remover subscription do servidor');
       }
 
       console.log('Subscription removida do servidor');

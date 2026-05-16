@@ -1,149 +1,18 @@
 import ParametrosAtuais from "../models/Parametros_atuais.js";
-import CondicoesIdeais from "../models/Condicoes_ideais.js";
 import Cativeiros from "../models/Cativeiros.js";
 import PushSubscription from "../models/PushSubscriptions.js";
 import EmailSettings from "../models/EmailSettings.js";
 import emailService from "../services/emailService.js";
+import alertService from "../services/alertService.js";
 
-// Configuração VAPID — obrigatório no .env, sem estas chaves push notifications não funcionam
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-  throw new Error(
-    "VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY não definidos no .env. " +
-    "Push notifications não funcionarão sem estas chaves."
+// Push é opcional — a API sobe normalmente sem as VAPID keys
+const pushEnabled = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+if (!pushEnabled) {
+  console.warn(
+    '⚠️ Push notifications desabilitado: VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY não configuradas no .env.'
   );
 }
 
-// Função para enviar notificações push
-const sendPushNotification = async (subscription, notificationData) => {
-  try {
-    const webpush = await import('web-push');
-    
-    // Configurar VAPID
-    webpush.default.setVapidDetails(
-      'mailto:camarize@example.com',
-      VAPID_PUBLIC_KEY,
-      VAPID_PRIVATE_KEY
-    );
-    
-    const payload = JSON.stringify({
-      title: 'Camarize - Alerta',
-      body: notificationData.mensagem,
-      icon: '/images/logo_camarize1.png',
-      badge: '/images/logo_camarize2.png',
-      data: {
-        url: `/rel-individual/${notificationData.cativeiro}`,
-        cativeiroId: notificationData.cativeiro,
-        tipo: notificationData.tipo,
-        severidade: notificationData.severidade
-      }
-    });
-
-    await webpush.default.sendNotification(subscription, payload);
-    console.log('✅ Notificação push enviada:', notificationData.mensagem);
-  } catch (error) {
-    console.error('❌ Erro ao enviar notificação push:', error);
-  }
-};
-
-// Função para enviar notificações push para todos os usuários inscritos
-const sendNotificationsToAllSubscribers = async (notificationData) => {
-  try {
-    console.log('📱 Enviando notificação push para todos os inscritos:', notificationData.mensagem);
-    
-    // Buscar todas as subscriptions ativas
-    const subscriptions = await PushSubscription.find({ isActive: true });
-    
-    console.log(`📊 Encontradas ${subscriptions.length} subscriptions ativas`);
-    
-    // Enviar para cada subscription
-    for (const sub of subscriptions) {
-      try {
-        await sendPushNotification(sub.subscription, notificationData);
-      } catch (error) {
-        console.error(`❌ Erro ao enviar para subscription ${sub._id}:`, error);
-        
-        // Se a subscription está inválida, marcar como inativa
-        if (error.statusCode === 410) {
-          await PushSubscription.findByIdAndUpdate(sub._id, { isActive: false });
-          console.log(`🗑️ Subscription ${sub._id} marcada como inativa`);
-        }
-      }
-    }
-  } catch (error) {
-    console.error('❌ Erro ao enviar notificações push:', error);
-  }
-};
-
-// Função para enviar alertas por email
-const sendEmailAlerts = async (notificationData) => {
-  try {
-    console.log('📧 Enviando alertas por email:', notificationData.mensagem);
-    
-    // Buscar todas as configurações de email ativas
-    const emailSettings = await EmailSettings.find({ 
-      emailEnabled: true 
-    }).populate('userId', 'nome email');
-    
-    console.log(`📊 Encontradas ${emailSettings.length} configurações de email ativas`);
-    
-    // Enviar para cada usuário que tem email configurado
-    for (const settings of emailSettings) {
-      try {
-        const forceSend = process.env.EMAIL_FORCE_SEND === 'true';
-
-        // Verificar se deve enviar email baseado nas configurações
-        if (!forceSend && !settings.shouldSendEmail(notificationData.tipo, notificationData.severidade)) {
-          console.log(`⏭️ Email pulado para ${settings.emailAddress} - configurações não atendidas`);
-          continue;
-        } else if (forceSend) {
-          console.log(`⚙️  Forçando envio ignorando preferências do usuário (EMAIL_FORCE_SEND=true)`);
-        }
-        
-        // Verificar horário de silêncio
-        if (!forceSend && settings.isInQuietHours()) {
-          console.log(`🌙 Email pulado para ${settings.emailAddress} - horário de silêncio`);
-          continue;
-        }
-        
-        // Verificar limite de frequência (pode ser desabilitado por env)
-        const disableRateLimit = process.env.EMAIL_DISABLE_RATE_LIMIT === 'true';
-        if (!disableRateLimit && !settings.canSendEmail()) {
-          const reason = settings.getLastBlockReason?.() || 'rate_limit';
-          const reasonText = {
-            min_interval: `intervalo mínimo de ${settings.frequency?.minIntervalMinutes ?? '?'} min não cumprido`,
-            hour_limit: `máximo por hora (${settings.frequency?.maxEmailsPerHour ?? '?'}) atingido`,
-            day_limit: `máximo por dia (${settings.frequency?.maxEmailsPerDay ?? '?'}) atingido`,
-            rate_limit: 'limite de frequência atingido'
-          }[reason];
-          console.log(`⏰ Email pulado para ${settings.emailAddress} - ${reasonText}`);
-          continue;
-        } else if (disableRateLimit) {
-          console.log(`⚙️  Rate limit de email desabilitado por ENV para ${settings.emailAddress}`);
-        }
-        
-        // Enviar email
-        const result = await emailService.sendAlertEmail(settings.emailAddress, notificationData);
-        
-        if (result.success) {
-          // Registrar envio bem-sucedido
-          settings.recordEmailSent();
-          await settings.save();
-          
-          console.log(`✅ Email enviado para ${settings.emailAddress}:`, result.messageId);
-        } else {
-          console.error(`❌ Erro ao enviar email para ${settings.emailAddress}:`, result.error);
-        }
-        
-      } catch (error) {
-        console.error(`❌ Erro ao processar email para ${settings.emailAddress}:`, error);
-      }
-    }
-  } catch (error) {
-    console.error('❌ Erro ao enviar alertas por email:', error);
-  }
-};
 
 // Função para gerar notificações baseadas na comparação de dados (OTIMIZADA)
 const generateNotifications = async (usuarioId = null, limit = 50) => {
@@ -230,8 +99,7 @@ const generateNotifications = async (usuarioId = null, limit = 50) => {
           notifications.push(notificationData);
           
           // Enviar notificações em background (não bloqueia a resposta)
-          sendNotificationsToAllSubscribers(notificationData).catch(err => console.error('Erro ao enviar push:', err));
-          sendEmailAlerts(notificationData).catch(err => console.error('Erro ao enviar email:', err));
+          alertService.sendAlert(notificationData).catch(err => console.error('Erro ao enviar alerta:', err));
         }
       }
       
@@ -258,8 +126,7 @@ const generateNotifications = async (usuarioId = null, limit = 50) => {
           notifications.push(notificationData);
           
           // Enviar notificações em background
-          sendNotificationsToAllSubscribers(notificationData).catch(err => console.error('Erro ao enviar push:', err));
-          sendEmailAlerts(notificationData).catch(err => console.error('Erro ao enviar email:', err));
+          alertService.sendAlert(notificationData).catch(err => console.error('Erro ao enviar alerta:', err));
         }
       }
       
@@ -286,8 +153,7 @@ const generateNotifications = async (usuarioId = null, limit = 50) => {
           notifications.push(notificationData);
           
           // Enviar notificações em background
-          sendNotificationsToAllSubscribers(notificationData).catch(err => console.error('Erro ao enviar push:', err));
-          sendEmailAlerts(notificationData).catch(err => console.error('Erro ao enviar email:', err));
+          alertService.sendAlert(notificationData).catch(err => console.error('Erro ao enviar alerta:', err));
         }
       }
     }
@@ -352,38 +218,43 @@ const getNotificationsByCativeiro = async (req, res) => {
 
 // Controller para inscrever em notificações push
 const subscribeToPush = async (req, res) => {
+  if (!pushEnabled) {
+    return res.status(503).json({
+      success: false,
+      error: 'Push notifications não disponível: VAPID keys não configuradas no servidor'
+    });
+  }
+
   try {
-    const { subscription, userId, deviceInfo } = req.body;
-    
+    const { subscription, deviceInfo } = req.body;
+    const userId = req.loggedUser?.id;
+
+    if (!subscription?.endpoint) {
+      return res.status(400).json({ success: false, error: 'Subscription inválida' });
+    }
+
     // Verificar se já existe uma subscription para este endpoint
     const existingSubscription = await PushSubscription.findOne({
       'subscription.endpoint': subscription.endpoint
     });
-    
+
     if (existingSubscription) {
-      // Atualizar subscription existente
       await PushSubscription.findByIdAndUpdate(existingSubscription._id, {
-        userId: userId,
-        subscription: subscription,
-        deviceInfo: deviceInfo,
+        userId,
+        subscription,
+        deviceInfo,
         isActive: true,
         createdAt: new Date()
       });
       console.log('✅ Subscription atualizada:', subscription.endpoint);
     } else {
-      // Criar nova subscription
-      await PushSubscription.create({
-        userId: userId,
-        subscription: subscription,
-        deviceInfo: deviceInfo
-      });
+      await PushSubscription.create({ userId, subscription, deviceInfo });
       console.log('✅ Nova subscription criada:', subscription.endpoint);
     }
-    
+
     console.log('✅ Nova inscrição para notificações push:', {
       userId,
-      deviceInfo,
-      subscription: subscription.endpoint
+      endpoint: subscription.endpoint
     });
     
     res.status(200).json({
@@ -401,6 +272,13 @@ const subscribeToPush = async (req, res) => {
 
 // Controller para cancelar inscrição em notificações push
 const unsubscribeFromPush = async (req, res) => {
+  if (!pushEnabled) {
+    return res.status(503).json({
+      success: false,
+      error: 'Push notifications não disponível: VAPID keys não configuradas no servidor'
+    });
+  }
+
   try {
     const { subscription, userId } = req.body;
     
