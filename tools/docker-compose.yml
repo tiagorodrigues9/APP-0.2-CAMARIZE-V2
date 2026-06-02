@@ -3,7 +3,7 @@ services:
     build: ../api
     container_name: camarize-api
     restart: unless-stopped
-    env_file: ../api/.env
+    env_file: ../api/.env.docker
     environment:
       - NODE_ENV=production
       - PORT=4000

@@ -1,10 +1,6 @@
-import notificationController from '../controllers/notificationController.js';
 import ParametrosAtuais from '../models/Parametros_atuais.js';
 import Cativeiros from '../models/Cativeiros.js';
-import EmailSettings from '../models/EmailSettings.js';
-import TiposCamaroes from '../models/Tipos_sensores.js';
-import CondicoesIdeais from '../models/Condicoes_ideais.js';
-import emailService from './emailService.js';
+import alertService from './alertService.js';
 
 class MonitoringService {
   constructor() {
@@ -174,114 +170,9 @@ class MonitoringService {
     return alerts;
   }
 
-  // Enviar alerta (email + push)
+  // Enviar alerta (email + push) delegando ao alertService centralizado
   async sendAlert(alertData) {
-    try {
-      console.log(`🚨 Enviando alerta: ${alertData.tipo} - ${alertData.cativeiroNome}`);
-
-      // Buscar o cativeiro para identificar o usuário proprietário
-      const Cativeiros = (await import('../models/Cativeiros.js')).default;
-      const cativeiro = await Cativeiros.findById(alertData.cativeiro);
-      
-      if (!cativeiro) {
-        console.log(`❌ Cativeiro não encontrado: ${alertData.cativeiro}`);
-        return;
-      }
-
-      // Se o cativeiro não tem usuário associado, tentar encontrar através das relações
-      let userId = cativeiro.user;
-      
-      if (!userId) {
-        console.log(`🔍 Cativeiro sem usuário direto, buscando através das relações...`);
-        
-        // Buscar através da relação fazenda-cativeiro -> usuário-fazenda
-        const FazendasxCativeiros = (await import('../models/FazendasxCativeiros.js')).default;
-        const UsuariosxFazendas = (await import('../models/UsuariosxFazendas.js')).default;
-        
-        const fazendaRel = await FazendasxCativeiros.findOne({ cativeiro: cativeiro._id });
-        if (fazendaRel) {
-          const userFazendaRel = await UsuariosxFazendas.findOne({ fazenda: fazendaRel.fazenda });
-          if (userFazendaRel) {
-            userId = userFazendaRel.usuario;
-            console.log(`✅ Usuário encontrado através das relações: ${userId}`);
-          }
-        }
-      }
-
-      if (!userId) {
-        console.log(`❌ Não foi possível identificar o usuário proprietário do cativeiro: ${cativeiro.nome}`);
-        return;
-      }
-
-      // Buscar configurações de email do usuário proprietário
-      const emailSettings = await EmailSettings.findOne({ 
-        userId: userId,
-        emailEnabled: true 
-      }).populate('userId', 'nome email');
-
-      if (!emailSettings) {
-        console.log(`❌ Configurações de email não encontradas para o usuário: ${userId}`);
-        return;
-      }
-
-      console.log(`📧 Enviando alerta para: ${emailSettings.emailAddress} (${emailSettings.userId.nome})`);
-
-      try {
-        const forceSend = process.env.EMAIL_FORCE_SEND === 'true';
-
-        // Verificar se deve enviar baseado nas configurações
-        if (!forceSend && !emailSettings.shouldSendEmail(alertData.tipo, alertData.severidade)) {
-          console.log(`⏭️ Email pulado para ${emailSettings.emailAddress} - configurações não atendidas`);
-          return;
-        } else if (forceSend) {
-          console.log(`⚙️  Forçando envio ignorando preferências do usuário (EMAIL_FORCE_SEND=true)`);
-        }
-
-        // Verificar horário de silêncio
-        if (!forceSend && emailSettings.isInQuietHours()) {
-          console.log(`🌙 Email pulado para ${emailSettings.emailAddress} - horário de silêncio`);
-          return;
-        }
-
-        // Verificar limite de frequência (desabilitável por ENV)
-        const disableRateLimit = process.env.EMAIL_DISABLE_RATE_LIMIT === 'true';
-        if (!disableRateLimit && !emailSettings.canSendEmail()) {
-          const reason = emailSettings.getLastBlockReason?.() || 'rate_limit';
-          const reasonText = {
-            min_interval: `intervalo mínimo de ${emailSettings.frequency?.minIntervalMinutes ?? '?'} min não cumprido`,
-            hour_limit: `máximo por hora (${emailSettings.frequency?.maxEmailsPerHour ?? '?'}) atingido`,
-            day_limit: `máximo por dia (${emailSettings.frequency?.maxEmailsPerDay ?? '?'}) atingido`,
-            rate_limit: 'limite de frequência atingido'
-          }[reason];
-          console.log(`⏰ Email pulado para ${emailSettings.emailAddress} - ${reasonText}`);
-          return;
-        } else if (disableRateLimit) {
-          console.log(`⚙️  Rate limit de email desabilitado por ENV para ${emailSettings.emailAddress}`);
-        }
-
-        // Enviar email
-        const result = await emailService.sendAlertEmail(emailSettings.emailAddress, alertData);
-        
-        if (result.success) {
-          // Registrar envio bem-sucedido
-          emailSettings.recordEmailSent();
-          await emailSettings.save();
-          
-          console.log(`✅ Email enviado para ${emailSettings.emailAddress}:`, result.messageId);
-        } else {
-          console.error(`❌ Erro ao enviar email para ${emailSettings.emailAddress}:`, result.error);
-        }
-        
-      } catch (error) {
-        console.error(`❌ Erro ao processar email para ${emailSettings.emailAddress}:`, error);
-      }
-
-      // TODO: Implementar notificações push aqui
-      // await sendPushNotifications(alertData);
-
-    } catch (error) {
-      console.error('❌ Erro ao enviar alerta:', error);
-    }
+    await alertService.sendAlert(alertData);
   }
 
   // Verificação manual (para testes)

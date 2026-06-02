@@ -1,106 +1,51 @@
-// Service Worker para Camarize - Notificações Push e Cache Offline
+// Service Worker para Camarize - Notificações Push
 const CACHE_NAME = 'camarize-v1';
-const urlsToCache = [
-  '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
-  '/manifest.json'
-];
 
-// Instalar Service Worker
+// Instalar: ativa imediatamente sem bloquear em cache
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Cache aberto');
-        return cache.addAll(urlsToCache);
-      })
-  );
+  self.skipWaiting();
 });
 
-// Ativar Service Worker
+// Ativar: assume controle de todas as abas imediatamente e limpa caches antigos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deletando cache antigo:', cacheName);
-            return caches.delete(cacheName);
-          }
+    caches.keys()
+      .then((cacheNames) => Promise.all(
+        cacheNames.map((name) => {
+          if (name !== CACHE_NAME) return caches.delete(name);
         })
-      );
-    })
-  );
-});
-
-// Interceptar requisições
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Retorna do cache se disponível
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      }
-    )
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
 // Receber notificações push
 self.addEventListener('push', (event) => {
   console.log('Push recebido:', event);
-  
+
+  const payload = event.data ? event.data.json() : {};
+
   const options = {
-    body: event.data ? event.data.text() : 'Nova notificação do Camarize!',
-    icon: '/images/logo_camarize1.png',
-    badge: '/images/logo_camarize2.png',
+    body: payload.body || 'Nova notificação do Camarize!',
+    icon: payload.icon || '/images/logo_camarize1.png',
+    badge: payload.badge || '/images/logo_camarize2.png',
     vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
-    },
-    actions: [
-      {
-        action: 'explore',
-        title: 'Ver Detalhes',
-        icon: '/images/info-icon.svg'
-      },
-      {
-        action: 'close',
-        title: 'Fechar',
-        icon: '/images/close-icon.svg'
-      }
-    ]
+    data: payload.data || {}
   };
 
   event.waitUntil(
-    self.registration.showNotification('Camarize', options)
+    self.registration.showNotification(payload.title || 'Camarize', options)
   );
 });
 
-// Clique na notificação
+// Clique na notificação — navega para o cativeiro do alerta
 self.addEventListener('notificationclick', (event) => {
   console.log('Notificação clicada:', event);
-  
+
   event.notification.close();
 
-  if (event.action === 'explore') {
-    // Abrir a aplicação
-    event.waitUntil(
-      clients.openWindow('/')
-    );
-  } else if (event.action === 'close') {
-    // Apenas fechar a notificação
-    event.notification.close();
-  } else {
-    // Clique padrão - abrir a aplicação
-    event.waitUntil(
-      clients.openWindow('/')
-    );
-  }
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(clients.openWindow(url));
 });
 
 // Fechar notificação

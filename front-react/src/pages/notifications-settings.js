@@ -1,357 +1,280 @@
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
-import NavBottom from '../components/NavBottom';
-import AuthError from '../components/AuthError';
-import Loading from '../components/Loading';
-import PushNotificationManager from '../components/PushNotificationManager';
-import { useAuth } from '../hooks/useAuth';
+import { useState, useEffect } from 'react';
+import MemberLayout from '../components/MemberLayout';
+import Notification from '../components/Notification';
+import { useNotifications } from '../hooks/useNotifications';
 
-export default function NotificationsSettings() {
-  const router = useRouter();
-  const { user, loading, error } = useAuth();
+const STATUS_BADGE = {
+  supported:   { text: 'Suportado',     color: '#10b981', bg: '#f0fdf4' },
+  unsupported: { text: 'Não suportado', color: '#ef4444', bg: '#fef2f2' },
+  granted:     { text: 'Concedida',     color: '#10b981', bg: '#f0fdf4' },
+  denied:      { text: 'Negada',        color: '#ef4444', bg: '#fef2f2' },
+  default:     { text: 'Pendente',      color: '#f59e0b', bg: '#fefce8' },
+  active:      { text: 'Ativas',        color: '#10b981', bg: '#f0fdf4' },
+  inactive:    { text: 'Inativas',      color: '#64748b', bg: '#f8fafc' },
+};
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
+function Badge({ variant }) {
+  const s = STATUS_BADGE[variant] || STATUS_BADGE.inactive;
+  return (
+    <span style={{
+      fontSize: '0.78rem',
+      fontWeight: 600,
+      padding: '3px 12px',
+      borderRadius: 999,
+      color: s.color,
+      background: s.bg,
+    }}>
+      {s.text}
+    </span>
+  );
+}
 
-  if (loading) {
-    return <Loading message="Carregando..." />;
-  }
-
-  if (error) {
-    return <AuthError error={error} onRetry={() => window.location.reload()} />;
-  }
-
-  if (!user) {
-    return null;
-  }
-
+function StatusItem({ label, badge, last }) {
   return (
     <div style={{
-      minHeight: '100vh',
-      background: '#f8fafc',
-      paddingBottom: '80px'
+      flex: 1,
+      minWidth: 160,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 6,
+      padding: '16px 20px',
+      borderRight: last ? 'none' : '1px solid #f1f5f9',
     }}>
-      {/* Header */}
-      <div style={{
-        background: '#fff',
-        borderBottom: '1px solid #e5e7eb',
-        padding: '16px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px'
-      }}>
-        <button
-          onClick={() => router.back()}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-          onMouseOver={(e) => {
-            e.target.style.background = '#f3f4f6';
-          }}
-          onMouseOut={(e) => {
-            e.target.style.background = 'none';
-          }}
-        >
-          <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-            <path d="M15 18l-6-6 6-6" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        
-        <div>
-          <h1 style={{
-            margin: 0,
-            fontSize: '20px',
-            fontWeight: '600',
-            color: '#1f2937'
-          }}>
-            Configurações de Notificações
-          </h1>
-          <p style={{
-            margin: '4px 0 0 0',
-            fontSize: '14px',
-            color: '#6b7280'
-          }}>
-            Gerencie suas notificações push
-          </p>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div style={{
-        padding: '24px',
-        maxWidth: '800px',
-        margin: '0 auto'
-      }}>
-        {/* PWA Install Banner */}
-        <div style={{
-          background: 'linear-gradient(90deg, #f7b0b7 0%, #a3c7f7 100%)',
-          borderRadius: '16px',
-          padding: '24px',
-          marginBottom: '24px',
-          color: '#000',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📱</div>
-          <h2 style={{
-            margin: '0 0 12px 0',
-            fontSize: '24px',
-            fontWeight: '600',
-            color: '#000'
-          }}>
-            Instale o Camarize no seu Celular
-          </h2>
-          <p style={{
-            margin: '0 0 20px 0',
-            fontSize: '16px',
-            opacity: 0.9,
-            lineHeight: '1.5',
-            color: '#000'
-          }}>
-            Transforme o Camarize em um app nativo e receba notificações push 
-            mesmo com o navegador fechado!
-          </p>
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'center',
-            flexWrap: 'wrap'
-          }}>
-            <button
-              style={{
-                padding: '12px 24px',
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                borderRadius: '8px',
-                color: '#000',
-                fontWeight: '600',
-                cursor: 'pointer',
-                fontSize: '14px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseOver={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.3)';
-              }}
-              onMouseOut={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.2)';
-              }}
-              onClick={() => {
-                // Mostrar instruções de instalação
-                alert('Para instalar o Camarize:\n\n1. Abra o menu do navegador (⋮)\n2. Toque em "Adicionar à tela inicial"\n3. Confirme a instalação\n\nAgora o Camarize funcionará como um app nativo!');
-              }}
-            >
-              📲 Como Instalar
-            </button>
-            <button
-              style={{
-                padding: '12px 24px',
-                background: 'rgba(255, 255, 255, 0.9)',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#000',
-                fontWeight: '600',
-                cursor: 'pointer',
-                fontSize: '14px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseOver={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 1)';
-              }}
-              onMouseOut={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.9)';
-              }}
-              onClick={() => {
-                // Tentar instalar PWA
-                if (window.deferredPrompt) {
-                  window.deferredPrompt.prompt();
-                  window.deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                      console.log('PWA instalado com sucesso!');
-                    }
-                    window.deferredPrompt = null;
-                  });
-                } else {
-                  alert('Instalação automática não disponível. Use o botão "Como Instalar" para instruções manuais.');
-                }
-              }}
-            >
-              ⚡ Instalar Agora
-            </button>
-          </div>
-        </div>
-
-        {/* Push Notifications Manager */}
-        <PushNotificationManager />
-
-        {/* Features Info */}
-        <div style={{
-          background: '#fff',
-          borderRadius: '16px',
-          padding: '24px',
-          marginTop: '24px',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          border: '1px solid #e5e7eb'
-        }}>
-          <h3 style={{
-            margin: '0 0 20px 0',
-            fontSize: '18px',
-            fontWeight: '600',
-            color: '#1f2937',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            🚀 Recursos Avançados
-          </h3>
-          
-          <div style={{
-            display: 'grid',
-            gap: '20px',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))'
-          }}>
-            <div style={{
-              padding: '20px',
-              background: '#f0f9ff',
-              borderRadius: '12px',
-              border: '1px solid #bae6fd'
-            }}>
-              <div style={{ fontSize: '24px', marginBottom: '12px' }}>🔔</div>
-              <h4 style={{
-                margin: '0 0 8px 0',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#0369a1'
-              }}>
-                Notificações Inteligentes
-              </h4>
-              <p style={{
-                margin: 0,
-                fontSize: '14px',
-                color: '#0369a1',
-                lineHeight: '1.5'
-              }}>
-                Receba alertas quando temperatura, pH ou amônia saírem dos parâmetros ideais
-              </p>
-            </div>
-
-            <div style={{
-              padding: '20px',
-              background: '#f0fdf4',
-              borderRadius: '12px',
-              border: '1px solid #86efac'
-            }}>
-              <div style={{ fontSize: '24px', marginBottom: '12px' }}>📱</div>
-              <h4 style={{
-                margin: '0 0 8px 0',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#166534'
-              }}>
-                Funciona Offline
-              </h4>
-              <p style={{
-                margin: 0,
-                fontSize: '14px',
-                color: '#166534',
-                lineHeight: '1.5'
-              }}>
-                Acesse dados salvos mesmo sem conexão com a internet
-              </p>
-            </div>
-
-            <div style={{
-              padding: '20px',
-              background: '#fef3c7',
-              borderRadius: '12px',
-              border: '1px solid #fde68a'
-            }}>
-              <div style={{ fontSize: '24px', marginBottom: '12px' }}>⚡</div>
-              <h4 style={{
-                margin: '0 0 8px 0',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#92400e'
-              }}>
-                App Nativo
-              </h4>
-              <p style={{
-                margin: 0,
-                fontSize: '14px',
-                color: '#92400e',
-                lineHeight: '1.5'
-              }}>
-                Instale no celular e use como um app normal, sem precisar do navegador
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Support Info */}
-        <div style={{
-          background: '#fff',
-          borderRadius: '16px',
-          padding: '24px',
-          marginTop: '24px',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          border: '1px solid #e5e7eb',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '32px', marginBottom: '16px' }}>💬</div>
-          <h3 style={{
-            margin: '0 0 12px 0',
-            fontSize: '18px',
-            fontWeight: '600',
-            color: '#1f2937'
-          }}>
-            Precisa de Ajuda?
-          </h3>
-          <p style={{
-            margin: '0 0 20px 0',
-            fontSize: '14px',
-            color: '#6b7280',
-            lineHeight: '1.5'
-          }}>
-            Se você tiver problemas com as notificações ou instalação, 
-            entre em contato com nosso suporte
-          </p>
-          <button
-            style={{
-              padding: '12px 24px',
-              background: '#3B82F6',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '14px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.background = '#2563eb';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.background = '#3B82F6';
-            }}
-            onClick={() => {
-              // Abrir chat de suporte ou email
-              window.open('mailto:suporte@camarize.com?subject=Suporte Notificações Push', '_blank');
-            }}
-          >
-            📧 Contatar Suporte
-          </button>
-        </div>
-      </div>
-
-      <NavBottom />
+      <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        {label}
+      </span>
+      <Badge variant={badge} />
     </div>
   );
-} 
+}
+
+const ALERT_ITEMS = [
+  { icon: '🌡️', text: 'Temperatura fora do intervalo ideal' },
+  { icon: '🧪', text: 'pH fora do intervalo ideal' },
+  { icon: '⚗️', text: 'Nível de amônia fora do intervalo ideal' },
+];
+
+export default function NotificationsSettings() {
+  const {
+    isSupported,
+    isSubscribed,
+    permission,
+    isLoading,
+    error: hookError,
+    subscribeToPush,
+    unsubscribeFromPush,
+    testNotification,
+  } = useNotifications();
+
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [diag, setDiag] = useState(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setDiag({
+      hasSW:   'serviceWorker' in navigator,
+      hasPush: 'PushManager' in window,
+      protocol: window.location.protocol,
+      host: window.location.host,
+    });
+  }, []);
+
+  const showToast = (message, type = 'success') => setToast({ show: true, message, type });
+  const hideToast = () => setToast({ show: false, message: '', type: 'success' });
+
+  const handleSubscribe = async () => {
+    try {
+      const success = await subscribeToPush();
+      if (success) {
+        showToast('Notificações push ativadas com sucesso!');
+      } else {
+        showToast(hookError || 'Não foi possível ativar as notificações.', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Erro ao ativar notificações', 'error');
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    try {
+      await unsubscribeFromPush();
+      showToast('Notificações push desativadas.');
+    } catch (err) {
+      showToast(err.message || 'Erro ao desativar notificações', 'error');
+    }
+  };
+
+  const handleTest = async () => {
+    try {
+      await testNotification();
+      showToast('Notificação de teste enviada!');
+    } catch (err) {
+      showToast(err.message || 'Erro ao enviar notificação de teste', 'error');
+    }
+  };
+
+  const card = {
+    background: '#fff',
+    border: '1px solid #e2e8f0',
+    borderRadius: 16,
+    padding: '24px',
+  };
+
+  const btnBase = {
+    width: '100%',
+    padding: '14px',
+    borderRadius: 12,
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    cursor: isLoading ? 'not-allowed' : 'pointer',
+    border: 'none',
+    transition: 'opacity 0.15s',
+    opacity: isLoading ? 0.6 : 1,
+  };
+
+  const infoCard = {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: 16,
+    padding: '20px 24px',
+  };
+
+  const permBadge = permission === 'granted' ? 'granted' : permission === 'denied' ? 'denied' : 'default';
+  const actionable = isSupported && permission !== 'denied';
+
+  return (
+    <MemberLayout title="Notificações Push" subtitle="Gerencie alertas no navegador">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {/* ── Status bar ── */}
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #f1f5f9' }}>
+            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1e293b' }}>Status</h2>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+            <StatusItem label="Suporte do navegador" badge={isSupported ? 'supported' : 'unsupported'} />
+            <StatusItem label="Permissão"            badge={permBadge} />
+            <StatusItem label="Notificações"         badge={isSubscribed ? 'active' : 'inactive'} last />
+          </div>
+        </div>
+
+        {/* ── Navegador não suportado ── */}
+        {!isSupported && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 16, padding: '20px 24px' }}>
+            <p style={{ margin: '0 0 6px', fontSize: '0.875rem', fontWeight: 600, color: '#b91c1c' }}>
+              API de push não detectada
+            </p>
+            <p style={{ margin: '0 0 12px', fontSize: '0.875rem', color: '#b91c1c', lineHeight: 1.6 }}>
+              Notificações push requerem HTTPS (ou localhost) e um navegador compatível.
+              Use <strong>Chrome 90+</strong>, <strong>Edge 90+</strong> ou <strong>Firefox 44+</strong>.
+              No macOS, Safari só suporta push a partir da versão 16.4 (macOS Ventura).
+            </p>
+            {diag && (
+              <div style={{ background: '#fff', borderRadius: 10, padding: '12px 16px', fontSize: '0.8rem', fontFamily: 'monospace', color: '#7f1d1d', lineHeight: 1.8 }}>
+                <div>Service Worker API: <strong>{diag.hasSW ? '✓ presente' : '✗ ausente'}</strong></div>
+                <div>Push Manager API: <strong>{diag.hasPush ? '✓ presente' : '✗ ausente'}</strong></div>
+                <div>Protocolo: <strong>{diag.protocol}</strong></div>
+                <div>Endereço: <strong>{diag.host}</strong></div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Permissão negada ── */}
+        {isSupported && permission === 'denied' && (
+          <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 16, padding: '20px 24px' }}>
+            <p style={{ margin: '0 0 6px', fontSize: '0.875rem', fontWeight: 600, color: '#c2410c' }}>
+              Permissão bloqueada
+            </p>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: '#c2410c', lineHeight: 1.6 }}>
+              Clique no <strong>cadeado</strong> na barra de endereços, vá em <strong>Notificações</strong> e altere para <strong>Permitir</strong>. Em seguida, recarregue a página.
+            </p>
+          </div>
+        )}
+
+        {/* ── Ação + Info em grade no desktop ── */}
+        {actionable ? (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 16,
+            alignItems: 'start',
+          }}>
+            {/* Action card */}
+            <div style={card}>
+              <h2 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600, color: '#1e293b' }}>
+                {isSubscribed ? 'Notificações ativas' : 'Ativar notificações'}
+              </h2>
+              <p style={{ margin: '0 0 20px', fontSize: '0.875rem', color: '#64748b', lineHeight: 1.6 }}>
+                {isSubscribed
+                  ? 'Você receberá alertas quando os parâmetros dos cativeiros saírem do ideal.'
+                  : 'Ative para receber alertas no navegador mesmo com a aba fechada.'}
+              </p>
+
+              {!isSubscribed ? (
+                <button
+                  onClick={handleSubscribe}
+                  disabled={isLoading}
+                  style={{ ...btnBase, background: '#14b8a6', color: '#fff' }}
+                >
+                  {isLoading ? 'Ativando...' : 'Ativar Notificações'}
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button
+                    onClick={handleTest}
+                    disabled={isLoading}
+                    style={{ ...btnBase, background: '#f8fafc', color: '#1e293b', border: '1px solid #e2e8f0' }}
+                  >
+                    Enviar notificação de teste
+                  </button>
+                  <button
+                    onClick={handleUnsubscribe}
+                    disabled={isLoading}
+                    style={{ ...btnBase, background: '#fff', color: '#ef4444', border: '1px solid #fecaca' }}
+                  >
+                    {isLoading ? 'Aguarde...' : 'Desativar Notificações'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Info card */}
+            <div style={infoCard}>
+              <p style={{ margin: '0 0 14px', fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Quando você será alertado
+              </p>
+              {ALERT_ITEMS.map(({ icon, text }) => (
+                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <span style={{ fontSize: '1.1rem' }}>{icon}</span>
+                  <span style={{ fontSize: '0.875rem', color: '#475569' }}>{text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* Info card sozinho quando push não está disponível */
+          <div style={infoCard}>
+            <p style={{ margin: '0 0 14px', fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Quando você seria alertado
+            </p>
+            {ALERT_ITEMS.map(({ icon, text }) => (
+              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: '1.1rem' }}>{icon}</span>
+                <span style={{ fontSize: '0.875rem', color: '#475569' }}>{text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+      </div>
+
+      <Notification
+        isVisible={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={hideToast}
+      />
+    </MemberLayout>
+  );
+}
